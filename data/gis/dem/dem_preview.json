@@ -1,0 +1,20 @@
+{
+ "bounds": {
+  "west": 124.88597222222224,
+  "east": 124.94875,
+  "north": 11.84763888888889,
+  "south": 11.78625
+ },
+ "elevationRange_m": [
+  3.3,
+  466.8
+ ],
+ "slopeClassesDeg": [
+  0,
+  8,
+  15,
+  25,
+  35
+ ],
+ "note": "Visual previews only (hillshaded hypsometric tint; slope classes), bilinear-resampled to 512 px. Analysis uses the GeoTIFFs."
+}

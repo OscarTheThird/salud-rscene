@@ -1,0 +1,42 @@
+{
+  "name": "Catbalogan Watershed Forest Reserve",
+  "nameStatus": "Real study-area context: the reserve boundary is real GIS (Proclamation No. 413, s. 1994). The 3D terrain, rivers, reservoir, pumps, roads and service areas are a schematic simulation and do not depict the reserve's actual terrain or infrastructure.",
+  "displayLabel": "GIS study area • Simulation Mode",
+  "studyAreaType": "Watershed / Forest Reserve",
+  "operationalCatchment": {
+    "status": "simulated",
+    "note": "The reserve boundary is never the operational catchment. Phase 2B derives a candidate catchment from the Copernicus GLO-30 DEM for an unverified DEM outlet near the published Kulador Treatment Plant coordinate (the actual intake / spillway location is not verified); the runoff model uses its area only if data/gis/catchments/operational_catchment.metadata.json is \"validated\" with every check passed, otherwise the simulated 0.30 km²."
+  },
+  "digitalTwin": {
+    "terrain": "Procedural simulation (no elevation model)",
+    "infrastructure": "Schematic / simulated"
+  },
+  "gis": {
+    "watershed": {
+      "boundaryFile": "data/gis/watershed_boundary.geojson",
+      "expectedBoundaryFile": "data/gis/watershed_boundary.geojson",
+      "metadataFile": "data/gis/metadata.json"
+    },
+    "operationalCatchment": {
+      "boundaryFile": "data/gis/catchments/operational_catchment.geojson",
+      "metadataFile": "data/gis/catchments/operational_catchment.metadata.json"
+    },
+    "hydrology": {
+      "streamsFile": "data/gis/hydro/derived_streams.geojson",
+      "outletFile": "data/gis/hydro/outlet.geojson",
+      "demPreview": "data/gis/dem/dem_preview.json",
+      "demPreviewImage": "data/gis/dem/dem_preview.png",
+      "slopePreviewImage": "data/gis/hydro/slope_preview.png"
+    },
+    "administrative": { "municipality": null, "barangays": null },
+    "serviceAreas": null
+  },
+  "sceneTransform": null,
+  "_howToSupplyData": [
+    "1. Save the verified watershed (or contributing-catchment) polygon as data/gis/watershed_boundary.geojson (Polygon or MultiPolygon).",
+    "2. Fill in data/gis/metadata.json: status, boundaryType, source, sourceUrl, dataset, feature, retrieved, originalCrs, geometryType, areaKm2, notes.",
+    "3. Set gis.watershed.boundaryFile above to \"data/gis/watershed_boundary.geojson\".",
+    "4. Only status \"verified\" + boundaryType \"contributing-catchment\" replaces the simulated operational catchment. A \"watershed\" or \"watershed-management-context\" boundary is shown as study-area context only.",
+    "5. Administrative polygons (municipality, barangay) belong under gis.administrative and are never used as a watershed."
+  ]
+}

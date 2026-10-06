@@ -1,0 +1,108 @@
+{
+ "name": "Candidate DEM-derived catchment - DEM outlet (candidate, unverified)",
+ "status": "not-validated",
+ "boundaryType": "contributing-catchment",
+ "areaKm2": 9.6504,
+ "areaHa": 965.0,
+ "perimeterKm": 20.781,
+ "elevation_m": {
+  "min": 94.4,
+  "max": 457.5,
+  "mean": 271.2
+ },
+ "meanSlopeDeg": 18.2,
+ "outlet": {
+  "name": "DEM outlet (candidate, unverified)",
+  "published": {
+   "lat": 11.8123333,
+   "lon": 124.9028611
+  },
+  "snapped": {
+   "lat": 11.8125,
+   "lon": 124.9027778
+  },
+  "snapDistance_m": 20.6,
+  "source": "Catbalogan Water District, Kulador Treatment Plant page",
+  "sourceUrl": "https://catbaloganwd.gov.ph/Kulador.html",
+  "sourceText": "located 2.7 kilometers from Barangay San Andres of Catbalogan, Samar, or 110 48' 44.4\" N and 240 54' 10.3\" E. The plant receives water from the Antiao River through a spillway which is 16 meters wide and 1 meter tall.",
+  "note": "The published coordinate is the Kulador Treatment Plant, not an intake. The plant takes water from the Antiao River through an intake box / spillway whose location is not verified. The pour point here is only the DEM channel cell nearest the plant coordinate (candidate, unverified), so this catchment must not be treated as the catchment of the Kulador intake."
+ },
+ "dem": "data/gis/dem/dem.metadata.json",
+ "crs": "EPSG:4326",
+ "originalCrs": "EPSG:4326",
+ "geometryType": "Polygon",
+ "method": "Copernicus GLO-30 DSM -> Priority-Flood + epsilon -> D8 -> upstream cells of the snapped pour point -> polygon traced along cell edges (no smoothing)",
+ "generated": "2026-10-06",
+ "tool": "tools/hydro/process_dem.py (Python 3.10.0, numpy 1.26.4, scipy 1.15.1)",
+ "relationToReserve": {
+  "shareOfCatchmentInsideReserve": 0.528,
+  "shareOfReserveDrainingToOutlet": 0.634,
+  "note": "The reserve is the management context; only this catchment generates runoff in the model. The two areas are never added."
+ },
+ "validation": {
+  "checks": [
+   {
+    "id": "demCoversReserveAndOutlet",
+    "pass": true,
+    "detail": "DEM domain contains the reserve and the outlet"
+   },
+   {
+    "id": "demNoVoids",
+    "pass": true,
+    "detail": "no NoData cells in the processing domain"
+   },
+   {
+    "id": "noArtefactsInCatchment",
+    "pass": true,
+    "detail": "0 cells deviate > 50 m from their 3x3 median inside the catchment"
+   },
+   {
+    "id": "catchmentInsideDomain",
+    "pass": true,
+    "detail": "catchment margin to domain edge = 169 cells"
+   },
+   {
+    "id": "outletSnapWithinRadius",
+    "pass": true,
+    "detail": "snap distance 20.6 m"
+   },
+   {
+    "id": "outletOnMappedAntiao",
+    "pass": true,
+    "detail": "snapped outlet 0.0 m from the mapped Antiao River"
+   },
+   {
+    "id": "outletOnDerivedChannel",
+    "pass": true,
+    "detail": "accumulation 9.6504 km² >= threshold 0.2 km²"
+   },
+   {
+    "id": "polygonValid",
+    "pass": true,
+    "detail": "1 part(s), 0 hole(s); polygon vs cell area 9.6504 / 9.6504 km²"
+   },
+   {
+    "id": "catchmentContainsOutlet",
+    "pass": true,
+    "detail": "outlet cell is part of the catchment"
+   },
+   {
+    "id": "areaStableToSnapRadius",
+    "pass": true,
+    "detail": "area range across all snap variants (30-250 m) = 9.65-10.42 km² (8.0% of the selected area)"
+   },
+   {
+    "id": "closedDepressionsResolved",
+    "pass": false,
+    "detail": "44% of the catchment (4.231 km²) drains through 16 closed depressions deeper than 10 m (limit 10%); excluding it leaves 5.419 km²"
+   },
+   {
+    "id": "mainStemAgreesWithAntiao",
+    "pass": true,
+    "detail": "82% of the mapped Antiao River inside the catchment lies within 90 m of a derived stream"
+   }
+  ],
+  "status": "not-validated"
+ },
+ "notes": "DSM caveat: canopy and structures are included in the elevations; at catchment scale ridge lines are robust, but the boundary is uncertain by roughly one to two cells (30-60 m)."
+}

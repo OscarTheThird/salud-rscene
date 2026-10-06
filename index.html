@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Watershed Command Center</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 3s6 6.5 6 11a6 6 0 0 1-12 0c0-4.5 6-11 6-11z' fill='%232ee6d6'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="styles.css">
+<script type="importmap">
+{ "imports": { "three": "./vendor/three.module.js", "three/addons/": "./vendor/addons/" } }
+</script>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute">
+  <defs>
+    <symbol id="i-grid" viewBox="0 0 24 24"><path d="M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z" fill="currentColor"/></symbol>
+    <symbol id="i-pin" viewBox="0 0 24 24"><path d="M12 21s7-6.2 7-11.5A7 7 0 0 0 5 9.5C5 14.800 12 21 12 21z M12 12a2.500 2.500 0 1 0 0-5 2.500 2.500 0 0 0 0 5z" fill="none" stroke="currentColor" stroke-width="1.8"/></symbol>
+    <symbol id="i-drop" viewBox="0 0 24 24"><path d="M12 3s6 6.500 6 11a6 6 0 0 1-12 0c0-4.500 6-11 6-11z" fill="currentColor"/></symbol>
+    <symbol id="i-pump" viewBox="0 0 24 24"><path d="M4 20h16M7 20V9h10v11M10 9V5h4v4M17 14h3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+    <symbol id="i-bars" viewBox="0 0 24 24"><path d="M5 20V11M12 20V4M19 20v-6" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></symbol>
+    <symbol id="i-trend" viewBox="0 0 24 24"><path d="M3 18l6-6 4 4 8-9" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M3 21h18" stroke="currentColor" stroke-width="2"/></symbol>
+    <symbol id="i-bell" viewBox="0 0 24 24"><path d="M6 17V11a6 6 0 0 1 12 0v6l2 2H4zM10 21h4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></symbol>
+    <symbol id="i-file" viewBox="0 0 24 24"><path d="M6 3h8l4 4v14H6zM9 12h6M9 16h6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></symbol>
+    <symbol id="i-gear" viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 17h2M10 17h10M14 4v6M6 14v6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M16 16l4 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+    <symbol id="i-warn" viewBox="0 0 24 24"><path d="M12 3l10 18H2z" fill="currentColor"/><path d="M12 9v5M12 17v1" stroke="#0a1a2e" stroke-width="2" stroke-linecap="round"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="currentColor"/><path d="M7 12.500l3.500 3.500L17 9" fill="none" stroke="#0a1a2e" stroke-width="2.200" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-crit" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="currentColor"/><path d="M12 7v6M12 16v1" stroke="#0a1a2e" stroke-width="2.400" stroke-linecap="round"/></symbol>
+    <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="currentColor"/><path d="M12 11v6M12 7v1" stroke="#0a1a2e" stroke-width="2.400" stroke-linecap="round"/></symbol>
+    <symbol id="i-layers" viewBox="0 0 24 24"><path d="M12 3l9 5-9 5-9-5zM3 13l9 5 9-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></symbol>
+    <symbol id="i-sat" viewBox="0 0 24 24"><path d="M5 19l5-5M8 4l12 12-4 4L4 8zM14 10l2-2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></symbol>
+    <symbol id="i-cube" viewBox="0 0 24 24"><path d="M12 3l8 4.500v9L12 21l-8-4.500v-9zM12 12l8-4.500M12 12L4 7.500M12 12v9" fill="none" stroke="currentColor" stroke-width="1.700" stroke-linejoin="round"/></symbol>
+    <symbol id="i-topo" viewBox="0 0 24 24"><path d="M2 18l6-9 4 5 3-4 7 8z" fill="none" stroke="currentColor" stroke-width="1.800" stroke-linejoin="round"/></symbol>
+    <symbol id="i-map2" viewBox="0 0 24 24"><path d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2zM9 4v14M15 6v14" fill="none" stroke="currentColor" stroke-width="1.700" stroke-linejoin="round"/></symbol>
+    <symbol id="i-brain" viewBox="0 0 24 24"><path d="M3 18l5-6 4 3 4-8 5 4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="8" cy="12" r="1.600" fill="currentColor"/><circle cx="12" cy="15" r="1.600" fill="currentColor"/><circle cx="16" cy="7" r="1.600" fill="currentColor"/></symbol>
+  </defs>
+</svg>
+
+<div class="app">
+  <aside class="sidebar" id="sidebar">
+    <div class="sb-in">
+    <div class="brand"><img src="assets/SALUD-LOGO-sm.png" alt="SALUD" class="brand-logo" width="180" height="52"><img src="assets/SALUD-mark.png" alt="SALUD" class="brand-mark" width="44" height="51"></div>
+    <div class="sys sim" title="Real GIS data: the study-area boundary (Proclamation No. 413, approximate position) and the DEM elevation, slope and stream layers (Copernicus GLO-30). Everything else is simulated: rainfall, demand, pumps, reservoir, treatment plant, service areas and the schematic 3D terrain. No live sensors or weather feeds are connected."><span class="pulse"></span><span class="sys-t">SIMULATION MODE</span><span class="sys-s" aria-hidden="true">SIM</span></div>
+    <nav id="nav">
+      <a data-nav="dashboard" class="active" tabindex="0" role="button" title="Overview" aria-label="Overview"><svg><use href="#i-grid"/></svg><span class="nl">Overview</span></a>
+      <a data-nav="map" tabindex="0" role="button" title="Watershed &amp; Rainfall" aria-label="Watershed &amp; Rainfall"><svg><use href="#i-pin"/></svg><span class="nl">Watershed &amp; Rainfall</span></a>
+      <a data-nav="water" tabindex="0" role="button" title="Water Availability" aria-label="Water Availability"><svg><use href="#i-drop"/></svg><span class="nl">Water Availability</span></a>
+      <a data-nav="reports" tabindex="0" role="button" title="Reports" aria-label="Reports"><svg><use href="#i-file"/></svg><span class="nl">Reports</span></a>
+      <a data-nav="settings" tabindex="0" role="button" title="Settings" aria-label="Settings"><svg><use href="#i-gear"/></svg><span class="nl">Settings</span></a>
+    </nav>
+    <div class="sb-speed" id="sbSpeed" title="Simulation speed (hover the sidebar to change)" aria-label="Simulation speed">1×</div>
+    <div class="simbox">
+      <b>SIMULATION CONTROLS</b>
+      <div class="seg" id="speed" title="1× = 20 simulated minutes every 2 seconds"><small>Speed</small><button data-x="1" class="active">1×</button><button data-x="6">6×</button><button data-x="24">24×</button></div>
+      <small>Scenario data · not live telemetry</small>
+    </div>
+    <div class="weather" title="Scenario readout from the simulation, not live weather">
+      <small class="wx-h">SCENARIO CONDITIONS</small>
+      <div class="loc"><svg viewBox="0 0 24 24"><use href="#i-pin"/></svg><span id="saLoc">Study area</span> <em>SCENARIO</em></div>
+      <div class="wx"><span class="wxicon" id="wxIcon"></span><div><small class="wx-sim">Simulated</small><b id="wxTemp">26 °C</b><small id="wxDesc">Light Rain</small></div></div>
+      <small id="wxTime" class="muted"></small>
+    </div>
+    </div>
+  </aside>
+
+  <div class="main">
+    <header class="mhead">
+      <button type="button" class="mmenu" aria-label="Open menu" aria-controls="sidebar" aria-expanded="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
+      <div class="mbrand"><img src="assets/SALUD-LOGO-sm.png" alt="SALUD" class="brand-logo" width="97" height="28"></div>
+      <div class="sys sim" title="Scenario simulation. Real GIS data: study-area boundary and DEM layers only. Everything else is simulated."><span class="pulse"></span>SIMULATION MODE</div>
+    </header>
+    <header class="topbar">
+      <div class="questions" id="questions">
+        <div class="q" data-q="1" title="Storage, forecast and days of supply"><small>1 · DO WE HAVE ENOUGH WATER?</small><b><i></i><span id="q1">…</span></b></div>
+        <div class="q" data-q="2" title="Rainfall, infiltration, runoff and overflow over the next 72 h"><small>2 · WHAT HAPPENS TO THE RAINWATER?</small><b><i></i><span id="q2">…</span></b></div>
+        <div class="q" data-q="3" title="Supply vs demand in each service area"><small>3 · IS WATER REACHING WHERE IT IS NEEDED?</small><b><i></i><span id="q3">…</span></b></div>
+      </div>
+      <div class="search">
+        <svg><use href="#i-search"/></svg>
+        <input id="search" placeholder="Search area, pump, valve…" autocomplete="off">
+        <kbd>Ctrl K</kbd>
+        <div id="searchRes" class="sres"></div>
+      </div>
+      <button class="bell" id="bell" title="Decision alerts"><svg><use href="#i-bell"/></svg><i id="bellDot"></i></button>
+      <span class="av" title="LGU – Watershed Management">OM</span>
+    </header>
+
+    <div class="content">
+      <div class="top">
+        <section class="panel map" id="p-map">
+          <div class="map-title" data-sel="studyarea"><span class="mt-ico"><svg><use href="#i-layers"/></svg></span><div><b id="saName">STUDY AREA</b> <em class="sa-status" id="saStatus"></em><small id="viewName">Schematic digital twin · simulated terrain</small></div></div>
+          <div id="gl"></div>
+          <div class="mhint" id="mHint" aria-hidden="true">Use two fingers to move the map</div>
+          <div id="labels"></div>
+          <div class="flowchain" id="flowchain"></div>
+          <div class="zoomctl"><button id="zin" title="Zoom in">+</button><button id="zout" title="Zoom out">−</button><button id="zreset" title="Recenter">◎</button></div>
+          <div class="layers" id="layers">
+            <button type="button" class="lyr-toggle" id="layersBtn" aria-expanded="false" aria-controls="layers" title="Show map layers"><svg><use href="#i-layers"/></svg><span>Layers</span><svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+            <div class="lg-h">BASE</div>
+            <label title="Procedural (schematic) relief, not the DEM"><span class="sw sw-terrain"></span>Terrain (schematic)<input type="checkbox" data-layer="terrain" checked><i></i></label>
+            <label title="GIS polygon when supplied; otherwise the simulated Phase 1 outline"><span class="sw sw-line" id="bndSwatch" style="background:#2ee66f"></span><span id="bndLabel">Watershed boundary</span><input type="checkbox" data-layer="boundary" checked><i></i></label>
+            <div class="lg-h hy" title="Real data: Copernicus GLO-30 DEM and products derived from it">DEM · REAL / DERIVED</div>
+            <label class="hy" title="Copernicus GLO-30 elevation (hillshaded tint), draped on the schematic terrain for orientation"><span class="sw sw-dem"></span>DEM elevation<input type="checkbox" data-layer="demtint"><i></i></label>
+            <label class="hy" title="Slope classes from the DEM (Horn 1981): &lt;8°, 8–15°, 15–25°, 25–35°, &gt;35°"><span class="sw sw-slope"></span>Slope<input type="checkbox" data-layer="slope"><i></i></label>
+            <label class="hy" id="catRow" title="Candidate catchment draining to an unverified DEM outlet (D8 flow routing on the DEM). Not used by the model."><span class="sw sw-line" id="catSwatch" style="background:#ffc23d"></span><span id="catLabel">Op. catchment</span><input type="checkbox" data-layer="catchment" checked><i></i></label>
+            <label class="hy" title="Drainage network from DEM flow accumulation (not the schematic rivers)"><span class="sw sw-line" style="background:#a6ecff"></span>DEM streams<input type="checkbox" data-layer="dstreams" checked><i></i></label>
+            <label class="hy" title="DEM outlet (candidate, unverified): the DEM channel cell nearest the published Kulador Treatment Plant coordinate. The actual intake / spillway location is not verified."><span class="sw sw-dot" style="color:#ff4fd8"></span>DEM outlet (unverified)<input type="checkbox" data-layer="outlet" checked><i></i></label>
+            <div class="lg-h">WATER · SIMULATED</div>
+            <label title="Schematic rivers of the simulated twin"><span class="sw sw-line" style="background:#35b0f0"></span>Rivers (schematic)<input type="checkbox" data-layer="streams" checked><i></i></label>
+            <label><span class="sw" style="background:#2a9de0"></span>Reservoir<input type="checkbox" data-layer="reservoir" checked><i></i></label>
+            <label><span class="sw sw-arrow" style="color:#daf6ff"></span>Rain · runoff · flow<input type="checkbox" data-layer="flows" checked><i></i></label>
+            <div class="lg-h">LAND COVER · SIMULATED</div>
+            <label title="Classified (not measured) soil group × land cover. Drives the SCS-CN runoff estimate."><span class="sw sw-perm"></span>Permeability class<input type="checkbox" data-layer="perm"><i></i></label>
+            <label><span class="sw" style="background:#2f7a3a"></span>Forest / vegetation<input type="checkbox" data-layer="vegetation" checked><i></i></label>
+            <label><span class="sw" style="background:#9fcf5a"></span>Land cover · paddies<input type="checkbox" data-layer="landcover" checked><i></i></label>
+            <div class="lg-h">INFRASTRUCTURE · SIM.</div>
+            <label><span class="sw sw-line" style="background:#5a616b"></span>Roads<input type="checkbox" data-layer="roads" checked><i></i></label>
+            <label><span class="sw sw-dot" style="color:#2ee66f"></span>Pumps · WTP · intake<input type="checkbox" data-layer="pumps" checked><i></i></label>
+            <label><span class="sw sw-arrow" style="color:#3da5ff"></span>Pipelines &amp; valves<input type="checkbox" data-layer="pipes" checked><i></i></label>
+            <div class="lg-h">COMMUNITIES · SIM.</div>
+            <label><span class="sw" style="background:#e07a3a"></span>Households<input type="checkbox" data-layer="households" checked><i></i></label>
+            <label><span class="sw" style="background:#9db4cc"></span>Commercial<input type="checkbox" data-layer="commercial" checked><i></i></label>
+            <label><span class="sw sw-ring"></span>Service areas<input type="checkbox" data-layer="service" checked><i></i></label>
+            <div class="lg-note"><span style="color:#5fb0ff">blue</span> normal supply · <span style="color:#ffb347">amber</span> backup route · ring <span style="color:#ff6b3d">pulsing</span> = supply below demand</div>
+          </div>
+          <div class="viewbtns" id="viewbtns">
+            <button data-view="natural" title="Muted natural palette (not satellite imagery)"><svg><use href="#i-sat"/></svg>Natural</button>
+            <button data-view="3d" class="active"><svg><use href="#i-cube"/></svg>3D View</button>
+            <button data-view="topo"><svg><use href="#i-topo"/></svg>Topographic</button>
+            <button data-view="2d"><svg><use href="#i-map2"/></svg>Plan View</button>
+          </div>
+          <div class="permlegend" id="permLegend" hidden>
+            <b>PERMEABILITY / INFILTRATION CLASS · CLASSIFIED, NOT MEASURED</b>
+            <div class="pl-bar"></div>
+            <div class="pl-ax"><span>CN 50<br>infiltrates</span><span>75</span><span>CN 98<br>runs off</span></div>
+            <div class="pl-hsg"><span>HSG B · forest loam</span><span>C · slopes</span><span>D · clay / paddy</span></div>
+            <div class="pl-note">Bright area = catchment draining to the reservoir (used by the runoff model) · <span id="permStat"></span></div>
+          </div>
+          <div class="infocard" id="infocard" hidden></div>
+        </section>
+
+        <div class="right">
+          <section class="panel" id="p-predictive">
+            <div class="ph"><svg class="cy"><use href="#i-trend"/></svg><h3 title="Physics-based scenario simulation (SCS-CN runoff + water balance). Not a statistical or data-driven forecast.">SCENARIO WATER AVAILABILITY<small class="ph-sub">· physics-based</small></h3>
+              <div class="seg" id="scen" title="Scenario simulation: changes rainfall, soil moisture, runoff, demand and the forecast"><small>Scenario</small>
+                <button data-s="dry">Dry</button><button data-s="light" class="active">Light</button><button data-s="moderate">Monsoon</button><button data-s="heavy">Typhoon</button>
+              </div>
+              <button class="chip" id="modelBtn" title="How the estimate is calculated"><svg><use href="#i-brain"/></svg>How it works</button></div>
+            <div class="dtlbar"><button type="button" class="dtl-toggle" id="detailsBtn" aria-expanded="false" aria-controls="chain inputs" title="Show the 5-step chain and model inputs"><svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Details</span><small>5-step chain · model inputs</small></button></div>
+            <div class="chain" id="chain"></div>
+            <div class="chart" id="fchart"></div>
+            <div class="inputs" id="inputs"></div>
+            <div class="kpis" id="fkpis"></div>
+            <div class="luquick" id="luQuick" title="What-if: share of upland forest cleared (kaingin / logging). Classified land cover, simulated: changes the curve numbers and baseflow used by the scenario model."></div>
+            <div class="banner" id="banner"></div>
+            <div class="modelcard" id="modelcard" hidden></div>
+          </section>
+          <section class="panel" id="p-status">
+            <div class="ph"><svg class="cy"><use href="#i-drop"/></svg><h3>WATER AVAILABILITY</h3><small class="ph-q">How much usable water do we have?</small><span class="supstate" id="supState"></span></div>
+            <div class="status-body">
+              <div class="donutwrap"><div id="donut"></div><div class="dc"><b id="dPct">68.4%</b><small>STORED</small></div></div>
+              <div class="status-right">
+                <div class="avail" id="avail"></div>
+                <div class="thrstrip" id="thrstrip"></div>
+              </div>
+            </div>
+          </section>
+        </div>
+      </div>
+
+      <div class="bottom">
+        <section class="panel" id="p-consumption">
+          <div class="ph"><svg class="cy"><use href="#i-bars"/></svg><h3>WATER DEMAND</h3><small class="ph-q">Where is water needed?</small>
+            <select id="range" title="Trend window"><option value="7">7 days</option><option value="14">14 days</option><option value="30" selected>30 days</option></select></div>
+          <div class="cons-kpis" id="ckpis"></div>
+          <div class="ctitle">Demand trend <em>simulated history</em> <span><i class="dot b"></i>Household <i class="dot o"></i>Commercial</span></div>
+          <div class="chart" id="cchart"></div>
+        </section>
+        <section class="panel" id="p-areas">
+          <div class="ph"><svg class="cy"><use href="#i-pin"/></svg><h3>SUPPLY vs DEMAND BY AREA</h3>
+            <select id="period" title="Sort"><option value="gap">Worst first</option><option value="demand">By demand</option></select></div>
+          <div id="areas"></div>
+        </section>
+        <section class="panel" id="p-pumps">
+          <div class="ph"><svg class="cy"><use href="#i-pump"/></svg><h3>WATER DISTRIBUTION</h3>
+            <div class="tabs" id="pumpTabs"><button data-tab="net" class="active">Network</button><button data-tab="list">Pump details</button></div></div>
+          <div id="pumpNet"></div>
+          <div id="pumps" hidden></div>
+        </section>
+        <section class="panel" id="p-alerts">
+          <div class="ph"><svg class="cy"><use href="#i-bell"/></svg><h3>DECISION SUPPORT<span class="ph-sub">Recommended actions · rule-based advisory</span></h3><a class="va" id="alertsAll">Show dismissed</a></div>
+          <div class="ds-status"><span class="ds-chip normal" id="dsChip">OK</span><b id="dsHead">All service areas supplied; continue routine monitoring</b></div>
+          <div id="alerts"></div>
+        </section>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="mback" id="mBack" hidden></div>
+<nav class="mbar" aria-label="Simulation controls">
+  <small>Speed</small><button type="button" data-mx="1" class="active">1×</button><button type="button" data-mx="6">6×</button><button type="button" data-mx="24">24×</button>
+  <button type="button" class="mmenu" aria-label="Open menu" aria-controls="sidebar" aria-expanded="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><span>Menu</span></button>
+</nav>
+<div id="toast"></div>
+<script type="module" src="js/app.js"></script>
+</body>
+</html>
