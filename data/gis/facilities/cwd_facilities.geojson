@@ -1,0 +1,100 @@
+{
+  "type": "FeatureCollection",
+  "name": "Catbalogan Water District facilities",
+  "metadata": {
+    "label": "Water district facilities",
+    "compiled": "2026-10-31",
+    "sources": [
+      { "id": "cwd-about", "title": "Catbalogan Water District, About Us (site © 2018)", "url": "https://www.catbaloganwd.gov.ph/about%20us.html" },
+      { "id": "cwd-kulador", "title": "Catbalogan Water District, Kulador Treatment Plant page", "url": "https://catbaloganwd.gov.ph/Kulador.html" },
+      { "id": "osm", "title": "OpenStreetMap (Nominatim lookup, 2026-10-31)", "url": "https://www.openstreetmap.org/" },
+      { "id": "psgc", "title": "PSGC 2023 barangay boundaries (data/gis/admin)", "url": "https://psa.gov.ph/classification/psgc" }
+    ],
+    "positionQuality": {
+      "published": "Coordinate published by the water district (REAL).",
+      "osm": "OpenStreetMap node for the place or office named by the water district (approximate: not a surveyed facility position).",
+      "barangay": "Centroid of the barangay named by the water district (approximate: the exact site is not published)."
+    },
+    "checks": "Kulador: 2.9 km from the San Andres centroid (CWD: 2.7 km). Caramayon OSM hamlet falls inside Libas (CWD: Sitio Caramayon, Barangay Libas); 3.8 km straight line to Kulador (CWD: 4.65 km pipeline). Cawayan centroid is 4.2 km from the CWD office (CWD: Masacpasac about 4.5 km from the city proper). Office node falls inside Poblacion 4 (CWD: Brgy. 04).",
+    "note": "The water system in the model stays SIMULATED. These markers show where the real facilities are, for orientation and for the CWD consultation; they do not drive the model."
+  },
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [124.902861, 11.812333] },
+      "properties": {
+        "id": "kulador",
+        "name": "Kulador Treatment Plant",
+        "short": "Kulador plant",
+        "kind": "plant",
+        "quality": "published",
+        "basis": "CWD published coordinate 11°48'44.4\" N, 124°54'10.3\" E (the site prints 110 and 240; 24° is a typo for 124°).",
+        "facts": [
+          "Takes Antiao River water over a spillway 16 m wide and 1 m tall",
+          "Sedimentation box → rapid sand filter → slow sand filter → chlorination; backwash tank",
+          "Current discharge about 20 L/s; two transmission lines (6\" CI and 8\" GI)",
+          "Also receives the Caramayon spring water by gravity (10\" pipe)",
+          "Turned over by the municipal waterworks in 1979, when the water district was created"
+        ],
+        "sources": ["cwd-kulador", "cwd-about"]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [124.9039403, 11.8462208] },
+      "properties": {
+        "id": "caramayon",
+        "name": "Caramayon Spring and Pumping Station",
+        "short": "Caramayon pumps",
+        "kind": "pump",
+        "quality": "osm",
+        "basis": "OSM hamlet \"Caramayon\" (inside Barangay Libas). The station is in this sitio; its exact position is not published.",
+        "facts": [
+          "Mini dam and sump tank; three high-pressure submersible pumps, 91 L/s combined (CWD: enough for about 9,000 households)",
+          "Pumps to a break-pressure chamber, then gravity to Kulador through a 10\" pipe (4.65 km)",
+          "13.2 kV power line (11.9 km) with a standby generator",
+          "Used when Masacpasac and Kulador flows are low (below 10 L/s)",
+          "Built 2002–2005 (ADB loan through LWUA's Small Towns Water Supply project); spring at 84.7 m elevation, reachable only on foot"
+        ],
+        "sources": ["cwd-about", "osm"]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [124.9164, 11.7859] },
+      "properties": {
+        "id": "masacpasac",
+        "name": "Masacpasac Sub-surface Channel",
+        "short": "Masacpasac (approx.)",
+        "kind": "source",
+        "quality": "barangay",
+        "basis": "Centroid of Barangay Cawayan (the CWD writes \"Kawayan\"). The exact site is not published.",
+        "facts": [
+          "Main source together with Kulador; about 20 L/s in the dry season to 40 L/s in the wet season",
+          "Sub-surface channel about 50 m long, 8 m wide and 2.2 m deep, at 155 m elevation",
+          "Dry-season (April–May) water depth averages 1.32 m",
+          "Discovered by the Americans in 1945; the 1979 system had an intake box, sand filters and a 9.66 km transmission line"
+        ],
+        "sources": ["cwd-about", "psgc"]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [124.8795917, 11.7751923] },
+      "properties": {
+        "id": "cwd-office",
+        "name": "Catbalogan Water District office",
+        "short": "CWD office",
+        "kind": "office",
+        "quality": "osm",
+        "basis": "OSM water-utility node at Allen Avenue Extension, Barangay 4 (matches the CWD address: Pier II, Allen Avenue Ext, Brgy. 04).",
+        "facts": [
+          "Water district created 1978 (Sangguniang Bayan Resolution No. 66 under P.D. 198)",
+          "LWUA Conditional Certificate of Conformance No. 107, 7 Dec 1979",
+          "Phone (055) 544-2576"
+        ],
+        "sources": ["cwd-about", "osm"]
+      }
+    }
+  ]
+}

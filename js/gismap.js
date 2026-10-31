@@ -74,7 +74,7 @@ export function createGisMap(container, { onSelect, onHover } = {}) {
   }
   const tip = document.createElement('div'); tip.className = 'gis-tip'; tip.hidden = true;
   container.append(svg, tip);
-  let units = [], proj = null, home = null, vb = null, metric = 'pop2024', breaks = [], selected = null, hovered = null, overlapSet = new Set();
+  let units = [], pts = [], proj = null, home = null, vb = null, metric = 'pop2024', breaks = [], selected = null, hovered = null, overlapSet = new Set();
 
   const fitBox = () => {
     const w = container.clientWidth || 800, h = container.clientHeight || 500, aspect = w / h;
@@ -122,6 +122,12 @@ export function createGisMap(container, { onSelect, onHover } = {}) {
       t.textContent = u.name;
       gLab.append(t);
     }
+    for (const p of pts) {          // point names sit to the right of their marker
+      if (!p.name) continue;
+      const t = el('text', { x: (p.xy[0] + 8 / k).toFixed(1), y: (p.xy[1] + 4 / k).toFixed(1), 'font-size': fs.toFixed(2), class: `pt ${p.cls ?? ''}` });
+      t.textContent = p.name;
+      gLab.append(t);
+    }
   }
   function legend() {
     const m = METRICS[metric], b = breaks;
@@ -139,12 +145,21 @@ export function createGisMap(container, { onSelect, onHover } = {}) {
       <div><span>Population 2024</span><b>${u.pop2024?.toLocaleString('en-US') ?? '–'}</b></div>
       <div><span>Households 2024</span><b>${u.hh2024?.toLocaleString('en-US') ?? '–'}</b></div>
       <div><span>Growth 2020–24</span><b>${g}</b></div>`;
+    placeTip(ev);
+  }
+  // point card: { title, sub, rows: [text] } (built by the caller, so place names stay in the data)
+  function showPtTip(p, ev) {
+    const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+    tip.innerHTML = `<b>${esc(p.info.title)}</b><small>${esc(p.info.sub ?? '')}</small><ul class="gis-tip-l">${p.info.rows.map(r => `<li>${esc(r)}</li>`).join('')}</ul>`;
+    placeTip(ev);
+  }
+  function placeTip(ev) {
     tip.hidden = false;
     const r = container.getBoundingClientRect(), sx = r.width / container.offsetWidth || 1;   // works under CSS scaling
     let x = (ev.clientX - r.left) / sx + 14, y = (ev.clientY - r.top) / sx + 14;
     if (x + tip.offsetWidth > container.offsetWidth - 6) x -= tip.offsetWidth + 28;
     if (y + tip.offsetHeight > container.offsetHeight - 6) y -= tip.offsetHeight + 28;
-    tip.style.left = x + 'px'; tip.style.top = y + 'px';
+    tip.style.left = Math.max(6, x) + 'px'; tip.style.top = Math.max(6, y) + 'px';
   }
 
   // ---- interaction: hover, click, drag-pan, wheel-zoom ----
@@ -157,6 +172,8 @@ export function createGisMap(container, { onSelect, onHover } = {}) {
       vb = [drag.vb[0] - dx, drag.vb[1] - dy, vb[2], vb[3]]; apply(); return;
     }
     if (ev.pointerType !== 'mouse') return;
+    const p = pts.find(x => x.g === ev.target.closest?.('.gis-pt'));
+    if (p?.info) { if (hovered !== null) { hovered = null; paint(); drawLabels(); onHover?.(null); } showPtTip(p, ev); return; }
     const u = unitAt(ev.target);
     if ((u?.code ?? null) !== hovered) { hovered = u?.code ?? null; paint(); drawLabels(); onHover?.(u ?? null); }
     showTip(u, ev);
@@ -181,7 +198,7 @@ export function createGisMap(container, { onSelect, onHover } = {}) {
   }
 
   return {
-    // data: { units: [{ code, name, polys (lon/lat), ... }] }; extras: { reserve, catchment, points: [{ lonlat, label, cls }] }
+    // data: { units: [{ code, name, polys (lon/lat), ... }] }; extras: { reserve, catchment, points: see setPoints }
     setData(data, extras = {}, overlaps = new Set()) {
       overlapSet = overlaps;
       const all = data.units.flatMap(u => u.polys.flat(2));
@@ -201,13 +218,20 @@ export function createGisMap(container, { onSelect, onHover } = {}) {
       const over = (polys, cls) => { if (polys?.length) gOver.append(el('path', { d: pathOf(polys.map(p => p.map(r => r.map(proj.fwd)))), class: cls })); };
       over(extras.catchment, 'gis-catch');
       over(extras.reserve, 'gis-reserve');
-      for (const pt of extras.points ?? []) {
-        const [x, y] = proj.fwd(pt.lonlat), g = el('g', { class: `gis-pt ${pt.cls ?? ''}` });
-        g.append(el('circle', { cx: x.toFixed(1), cy: y.toFixed(1), r: 1 }));
-        const t = el('title'); t.textContent = pt.label; g.append(t);
-        gOver.append(g);
-      }
+      this.setPoints(extras.points ?? [], false);
       this.reset();
+    },
+    // points: [{ lonlat, label (native tooltip), cls, name (shown on the map), info: { title, sub, rows } (hover card) }]
+    setPoints(points, redraw = true) {
+      pts.forEach(p => p.g.remove());
+      pts = points.map(pt => {
+        const xy = proj.fwd(pt.lonlat), g = el('g', { class: `gis-pt ${pt.cls ?? ''}` });
+        g.append(el('circle', { cx: xy[0].toFixed(1), cy: xy[1].toFixed(1), r: 1 }));
+        if (!pt.info) { const t = el('title'); t.textContent = pt.label; g.append(t); }
+        gOver.append(g);
+        return { ...pt, xy, g };
+      });
+      if (redraw && vb) apply();
     },
     setMetric(m) { metric = m; paint(); return legend(); },
     setBasemap(b) { basemap = BASEMAPS[b] ? b : 'none'; svg.classList.toggle('with-base', basemap !== 'none'); tiles.forEach(t => t.remove()); tiles.clear(); if (vb) drawTiles(); return BASEMAPS[basemap]; },

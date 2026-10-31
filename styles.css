@@ -977,25 +977,59 @@ html.mobile .olhbars{grid-template-columns:repeat(6,minmax(0,1fr));height:auto;r
 .gis-catch{fill:none;stroke:#ffb36b;stroke-width:1.5;stroke-dasharray:6 4;vector-effect:non-scaling-stroke;pointer-events:none}
 .gis-pt circle{fill:#ff6b6b;stroke:#fff;stroke-width:1.5;vector-effect:non-scaling-stroke}
 .gis-pt.wx circle{fill:#2ee66f}
+/* water district facilities: solid = published position, ring = approximate */
+.gis-pt.fac{cursor:help}.gis-pt.fac circle{fill:#4fb3ff;stroke:#fff;stroke-width:2}
+.gis-pt.fac-plant circle{fill:#4fb3ff}.gis-pt.fac-pump circle{fill:#b98cff}.gis-pt.fac-source circle{fill:#3fe0c5}.gis-pt.fac-office circle{fill:#f5d96a}
+.gis-pt.fac.approx circle{fill-opacity:.15;stroke-width:2.5;stroke-dasharray:3 2}
+.gis-pt.fac-plant.approx circle{stroke:#4fb3ff}.gis-pt.fac-pump.approx circle{stroke:#b98cff}.gis-pt.fac-source.approx circle{stroke:#3fe0c5}.gis-pt.fac-office.approx circle{stroke:#f5d96a}
+.gis-labels text.pt{font-weight:700;fill:#dff0ff}
+.gis-tip:has(.gis-tip-l){width:320px}
+.gis-tip-l{margin:2px 0 0;padding-left:16px;display:grid;gap:2px}.gis-tip-l li{line-height:1.3}
+.gis-keys .k-fac{width:8px;height:8px;border:1.5px solid #fff;border-radius:50%;background:#4fb3ff}
 .gis-labels text{fill:#eaf3fc;font-weight:600;paint-order:stroke;stroke:#071526;stroke-width:3px;stroke-linejoin:round;pointer-events:none}
 .gis-labels text.sel{fill:#f5d96a}
 .gis-tip{position:absolute;z-index:8;min-width:190px;background:#081a2e;border:1px solid #2a7aa8;border-radius:9px;padding:8px 10px;box-shadow:0 10px 28px #000c;font-size:11.5px;color:#c3d5ea;pointer-events:none}
 .gis-tip>b{display:block;font-size:13px;color:#fff}.gis-tip>small{display:block;color:#8fb2d6;margin-bottom:4px}
 .gis-tip div{display:flex;justify-content:space-between;gap:12px;padding:2px 0}.gis-tip div b{color:#eaf3fc}
-.gisui{position:absolute;z-index:6;left:10px;right:10px;bottom:10px;display:flex;justify-content:space-between;align-items:flex-end;gap:10px;pointer-events:none}
+.gisui{position:absolute;z-index:6;inset:10px;pointer-events:none}
+.gisui>.gis-sum{position:absolute;left:0;bottom:0}
 .gis-card{pointer-events:auto;background:#08182bee;border:1px solid var(--line);border-radius:10px;padding:8px 10px}
 .gis-sum{min-width:0}
 .gis-kpis{display:flex;gap:14px;margin-top:4px}.gis-kpis small{display:block;font-size:9.5px;color:#8fb2d6;text-transform:uppercase;letter-spacing:.4px}.gis-kpis b{font-size:16px;color:#fff}
-.gis-leg{max-width:360px;display:grid;gap:5px;font-size:11px;color:#c3d5ea}
-.gis-leg select{background:#0c2038;border:1px solid var(--line);border-radius:5px;color:#eaf3fc;font:inherit;font-size:11px;padding:2px 4px;margin-left:4px}
+/* map-options card: top right of the 2D map, collapsible (kept clear of the centred 3D/2D toggle) */
+.gis-leg{position:absolute;top:0;right:0;width:min(320px,calc(50% - 92px));max-height:calc(100% - 96px);display:flex;flex-direction:column;padding:0;font-size:11px;color:#c3d5ea;box-shadow:0 8px 24px #0008;overflow:hidden}
+.gis-leg-h{display:flex;align-items:center;gap:8px;width:100%;background:none;border:0;padding:7px 10px;color:#eaf3fc;font:inherit;text-align:left;cursor:pointer;border-radius:10px}
+.gis-leg-h:hover{background:#0f2945}
+.gis-leg-h:focus-visible{outline:2px solid #2ee6d6;outline-offset:-2px}
+.gis-leg-t{font-size:10.5px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;white-space:nowrap}
+.gis-leg-sum{flex:1;min-width:0;color:#8fb2d6;font-size:10.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:right}
+.gis-chev{flex:none;color:#2ee6d6;transition:transform .15s}
+.gis-leg.collapsed .gis-chev{transform:rotate(-90deg)}
+.gis-leg:not(.collapsed) .gis-leg-h{border-bottom:1px solid var(--line);border-radius:10px 10px 0 0}
+.gis-leg:not(.collapsed) .gis-leg-sum{visibility:hidden}
+.gis-leg-b{display:grid;gap:8px;padding:8px 10px 9px;overflow:auto;min-height:0}
+.gis-leg-b[hidden]{display:none}
+.gis-row{display:grid;gap:4px}
+.gis-lbl{font-size:9.5px;color:#8fb2d6;text-transform:uppercase;letter-spacing:.5px}
+.gis-seg{display:flex;border:1px solid var(--line);border-radius:7px;overflow:hidden;background:#0a1b31}
+.gis-seg button{flex:1 1 0;min-width:0;background:none;border:0;border-left:1px solid var(--line);padding:5px 6px;font:inherit;font-size:11px;color:#a9bfd8;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:background .12s,color .12s}
+.gis-seg button:first-child{border-left:0}
+.gis-seg button:hover{background:#12304f;color:#eaf3fc}
+.gis-seg button:focus-visible{outline:2px solid #2ee6d6;outline-offset:-2px;position:relative}
+.gis-seg button.active{background:#1b7f9e;color:#fff;font-weight:600;box-shadow:inset 0 -2px 0 #2ee6d6}
+.gis-seg button.active:hover{background:#1f8fb0}
+.gis-ramp-w{display:grid;gap:4px;padding:6px 8px;background:#0a1b31;border:1px solid var(--line);border-radius:7px}
+.gis-ramp-h{font-size:10.5px;color:#eaf3fc;font-weight:600}.gis-ramp-h small{color:#8fb2d6;font-weight:400}
 .gis-ramp{display:flex;flex-wrap:wrap;gap:4px 10px}.gis-ramp span{display:inline-flex;align-items:center;gap:4px;white-space:nowrap}.gis-ramp i{width:14px;height:10px;border-radius:2px;display:inline-block}
 .gis-keys{display:flex;flex-wrap:wrap;gap:3px 10px;color:#a9bfd8}.gis-keys span{display:inline-flex;align-items:center;gap:5px}
 .gis-keys i{display:inline-block;width:16px;height:0;border-top:2px solid}
 .gis-keys .k-res{border-color:#2ee6d6}.gis-keys .k-cat{border-top:2px dashed #ffb36b}.gis-keys .k-ovl{width:10px;height:10px;border:1.6px solid #2ee6d6}.gis-keys .k-pt{width:8px;height:8px;border:0;border-radius:50%;background:#ff6b6b}
 .gis-src{color:#8fb2d6;font-size:10px;line-height:1.35}
 html.mobile .mapmode{top:auto;bottom:62px}html.mobile .mapmode button{min-height:44px;font-size:13px;padding:0 14px}
-html.mobile .gisui{position:static;flex-direction:column;align-items:stretch;padding:8px 0 0}
-html.mobile .gis-tip{font-size:13px}html.mobile .gis-leg,html.mobile .gis-src,html.mobile .gis-keys small,html.mobile .gis-kpis small{font-size:12px}html.mobile .gis-leg select{font-size:13px;min-height:40px}
+html.mobile .gisui{position:static;display:grid;gap:8px;padding:8px 0 0}
+html.mobile .gis-tip{font-size:13px}html.mobile .gis-leg,html.mobile .gis-src,html.mobile .gis-keys small,html.mobile .gis-kpis small{font-size:12px}html.mobile :is(.gis-seg button,.gis-leg-h){font-size:13px;min-height:40px}
+html.mobile .gisui>:is(.gis-sum,.gis-leg,.gis-attr){position:static;width:auto;max-height:none}
+html.mobile .gis-attr{justify-self:end}
 .gis2d svg.gis-svg{width:100%!important;height:100%!important}
 /* mobile 2D: the map keeps a fixed height, the summary and legend cards flow below it */
 html.mobile #p-map.mode2d{height:auto;padding-bottom:10px}
@@ -1018,7 +1052,4 @@ html.mobile .olh{flex-wrap:wrap;row-gap:4px}
 .gis-svg.with-base .gis-reserve{fill-opacity:.12;stroke-width:2.5}
 .gis-tiles image{pointer-events:none}
 .gis-keys .k-ovl{border:1.6px dashed #e2c2ff}
-.gis-base{display:flex;align-items:center;gap:4px}
-.gis-base button{background:#0c2038;border:1px solid var(--line);border-radius:5px;color:#a9bfd8;font:inherit;font-size:11px;padding:2px 8px;cursor:pointer}
-.gis-base button.active{background:#145a38;border-color:#1c6a45;color:#fff}
-.gis-attr{position:absolute;right:0;top:-22px;font-size:9.5px;color:#cfd8e3;background:#000a;padding:1px 6px;border-radius:4px;pointer-events:auto;white-space:nowrap}
+.gis-attr{position:absolute;right:0;bottom:34px;font-size:9.5px;color:#cfd8e3;background:#000a;padding:1px 6px;border-radius:4px;pointer-events:auto;white-space:nowrap}

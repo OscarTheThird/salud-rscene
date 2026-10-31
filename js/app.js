@@ -1359,18 +1359,31 @@ function downloadReport() {
 // ---------- 2D barangay map (REAL: PSA census + PSGC boundaries) in the map panel ----------
 const BRGY = SA.barangays;
 let mapMode = '3d', gis = null, gisMetric = 'pop2024', gisBase = 'street', brgyOverlap = new Set();
+// map-options card open/closed: per-viewer convenience, default open; storage may throw (private mode, blocked)
+const GIS_LEG_KEY = 'salud.gisLegOpen';
+let gisLegOpen = true;
+try { gisLegOpen = localStorage.getItem(GIS_LEG_KEY) !== '0'; } catch { gisLegOpen = true; }
 const polysOf = gj => { try { return gj ? extractPolygons(gj).polys : []; } catch { return []; } };
+// water district facilities (REAL where the position is published, approximate otherwise); loaded in the background
+let FAC = null;
+const FAC_POS = { published: 'Published position', osm: 'Approximate: OpenStreetMap place', barangay: 'Approximate: barangay centre' };
+fetch('data/gis/facilities/cwd_facilities.geojson').then(r => (r.ok ? r.json() : null)).then(j => { FAC = j; if (gis) { gis.setPoints(gisPoints()); renderGisUi(); } }).catch(e => console.warn('[facilities]', e));
+function gisPoints() {
+  const outlet = SA.raw?.outlet?.features?.[0]?.geometry?.coordinates;
+  return [...(outlet ? [{ lonlat: outlet, label: 'DEM outlet (candidate, unverified) near the Kulador plant', cls: 'outlet' }] : []),
+    ...(WX_POINT ? [{ lonlat: WX_POINT, label: 'Live forecast point', cls: 'wx' }] : []),
+    ...(FAC?.features ?? []).map(f => { const p = f.properties; return {
+      lonlat: f.geometry.coordinates, name: p.short, cls: `fac fac-${p.kind}${p.quality === 'published' ? '' : ' approx'}`,
+      info: { title: p.name, sub: `${FAC_POS[p.quality] ?? p.quality} · ${p.basis}`, rows: p.facts } }; })];
+}
 function initGis() {
   if (gis || !BRGY?.units?.length) return;
   const reserve = polysOf(SA.raw?.reserve), catchment = polysOf(SA.raw?.catchment);
   brgyOverlap = new Set(reserve.length ? BRGY.units.filter(u => polygonsOverlap(u.polys, reserve)).map(u => u.code) : []);
-  const outlet = SA.raw?.outlet?.features?.[0]?.geometry?.coordinates;
-  const points = [...(outlet ? [{ lonlat: outlet, label: 'DEM outlet (candidate, unverified) near the Kulador plant', cls: 'outlet' }] : []),
-    ...(WX_POINT ? [{ lonlat: WX_POINT, label: 'Live forecast point', cls: 'wx' }] : [])];
   gis = createGisMap($('#gis2d'), {
     onSelect: u => { selected = u ? 'brgy:' + u.code : null; renderInfo(); },
   });
-  gis.setData(BRGY, { reserve, catchment, points }, brgyOverlap);
+  gis.setData(BRGY, { reserve, catchment, points: gisPoints() }, brgyOverlap);
   gis.setBasemap(gisBase);
   new ResizeObserver(() => gis.resize()).observe($('#gis2d'));
   renderGisUi();
@@ -1380,15 +1393,28 @@ function renderGisUi() {
   $('#gisUi').innerHTML = `
     <div class="gis-card gis-sum"><div class="olh"><span class="oltag real">REAL</span>${BRGY.label ?? ''} · ${T.count} barangays</div>
       <div class="gis-kpis"><div><small>People (PSA 2024)</small><b>${fmt(T.pop2024)}</b></div><div><small>Households</small><b>${fmt(T.hh2024)}</b></div><div><small>Overlap the reserve</small><b>${brgyOverlap.size}</b></div></div></div>
-    <div class="gis-card gis-leg"><div class="gis-base" role="group" aria-label="Basemap">Basemap ${Object.entries(BASEMAPS).map(([k, v]) => `<button type="button" data-base="${k}" class="${k === gisBase ? 'active' : ''}">${v.label}</button>`).join('')}</div>
-      <label>Colour by <select id="gisMetric">${Object.entries(METRICS).map(([k, v]) => `<option value="${k}"${k === gisMetric ? ' selected' : ''}>${v.label}</option>`).join('')}</select></label>
-      <div class="gis-ramp">${lg.map(x => `<span><i style="background:${x.c}"></i>${x.t}</span>`).join('')}</div>
-      <div class="gis-keys"><span title="Catbalogan Watershed Forest Reserve, plotted from Proclamation No. 413 (position about ±100–200 m)"><i class="k-res"></i>Forest reserve (Proc. 413)</span><span title="Area that drains to the candidate intake point, traced from the elevation model; not validated"><i class="k-cat"></i>Drains to the intake (DEM, not validated)</span><span title="Barangays whose boundary overlaps the reserve (approximate)"><i class="k-ovl"></i>Barangay overlaps the reserve</span><span title="Red: candidate intake point near the Kulador plant (unverified). Green: live-forecast point."><i class="k-pt"></i>Intake (red) · forecast point (green)</span></div>
-      <small class="gis-src">Population: PSA census. Boundaries: PSGC 2023 (simplified, approximate). ${m.unit ? 'Unit: ' + m.unit + '.' : ''} The reserve also reaches into Jiabong (not shown).</small></div>
+    <div class="gis-card gis-leg${gisLegOpen ? '' : ' collapsed'}">
+      <button type="button" class="gis-leg-h" id="gisLegToggle" aria-expanded="${gisLegOpen}" aria-controls="gisLegBody" title="${gisLegOpen ? 'Collapse' : 'Expand'} map options">
+        <span class="gis-leg-t">Map options</span><span class="gis-leg-sum">${B.label} · ${m.label}</span>
+        <svg class="gis-chev" viewBox="0 0 12 12" width="12" height="12" aria-hidden="true"><path d="M3 4.5 6 7.5 9 4.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+      <div class="gis-leg-b" id="gisLegBody"${gisLegOpen ? '' : ' hidden'}>
+      <div class="gis-row"><span class="gis-lbl" id="gisBaseLbl">Basemap</span><div class="gis-seg gis-base" role="group" aria-labelledby="gisBaseLbl">${Object.entries(BASEMAPS).map(([k, v]) => `<button type="button" data-base="${k}" aria-pressed="${k === gisBase}" class="${k === gisBase ? 'active' : ''}">${v.label}</button>`).join('')}</div></div>
+      <div class="gis-row"><span class="gis-lbl" id="gisMetricLbl">Colour by</span><div class="gis-seg gis-metric" id="gisMetric" role="group" aria-labelledby="gisMetricLbl">${Object.entries(METRICS).map(([k, v]) => `<button type="button" data-metric="${k}" aria-pressed="${k === gisMetric}" title="${v.label}" class="${k === gisMetric ? 'active' : ''}">${v.label.split(' ')[0]}</button>`).join('')}</div></div>
+      <div class="gis-ramp-w"><div class="gis-ramp-h">${m.label}${m.unit ? ` <small>${m.unit}</small>` : ''}</div>
+      <div class="gis-ramp">${lg.map(x => `<span><i style="background:${x.c}"></i>${x.t}</span>`).join('')}</div></div>
+      <div class="gis-keys"><span title="Catbalogan Watershed Forest Reserve, plotted from Proclamation No. 413 (position about ±100–200 m)"><i class="k-res"></i>Forest reserve (Proc. 413)</span><span title="Area that drains to the candidate intake point, traced from the elevation model; not validated"><i class="k-cat"></i>Drains to the intake (DEM, not validated)</span><span title="Barangays whose boundary overlaps the reserve (approximate)"><i class="k-ovl"></i>Barangay overlaps the reserve</span><span title="Red: candidate DEM outlet near the Kulador plant (unverified). Green: live-forecast point."><i class="k-pt"></i>DEM outlet (red) · forecast point (green)</span>${FAC ? `<span title="${FAC.metadata?.positionQuality ? Object.values(FAC.metadata.positionQuality).join(' ') : ''} Hover a marker for details and sources."><i class="k-fac"></i>Water district facilities (solid = published position, ring = approximate)</span>` : ''}</div>
+      <small class="gis-src">Population: PSA census. Boundaries: PSGC 2023 (simplified, approximate). ${m.unit ? 'Unit: ' + m.unit + '.' : ''} The reserve also reaches into Jiabong (not shown).</small></div></div>
     ${B.attr ? `<div class="gis-attr">${B.attr}</div>` : ''}`;
 }
-document.addEventListener('change', e => { if (e.target.matches('#gisMetric')) { gisMetric = e.target.value; renderGisUi(); } });
-document.addEventListener('click', e => { const b = e.target.closest('[data-base]'); if (b && gis) { gisBase = b.dataset.base; gis.setBasemap(gisBase); renderGisUi(); } });
+// re-render, then put keyboard focus back on the control that was used (innerHTML replaces it)
+const gisRerender = sel => { const had = document.activeElement?.closest?.('#gisUi'); renderGisUi(); if (had) $(sel)?.focus(); };
+document.addEventListener('click', e => {
+  if (!gis) return;
+  const b = e.target.closest('#gisUi [data-base]'), mt = e.target.closest('#gisUi [data-metric]'), t = e.target.closest('#gisLegToggle');
+  if (b) { gisBase = b.dataset.base; gis.setBasemap(gisBase); gisRerender(`[data-base="${gisBase}"]`); }
+  else if (mt) { gisMetric = mt.dataset.metric; gisRerender(`[data-metric="${gisMetric}"]`); }
+  else if (t) { gisLegOpen = !gisLegOpen; try { localStorage.setItem(GIS_LEG_KEY, gisLegOpen ? '1' : '0'); } catch {} gisRerender('#gisLegToggle'); }
+});
 function setMapMode(m) {
   if (m === '2d' && !BRGY?.units?.length) { toast('Barangay data is not loaded'); return; }
   mapMode = m;
