@@ -165,7 +165,7 @@ export function assembleStudyArea(config = {}, metadata = null, geojson = null, 
   const sa = {
     name: config.name ?? 'Study area', nameStatus: config.nameStatus ?? '',
     displayLabel: config.displayLabel ?? 'Simulation study area',
-    studyAreaType: config.studyAreaType ?? null, twin: config.digitalTwin ?? null,
+    studyAreaType: config.studyAreaType ?? null, twin: config.digitalTwin ?? null, weather: config.weather ?? null,
     metadata, gis: null, mode: 'fallback', warnings: [],
     fallbackReason: null,
   };
@@ -234,6 +234,52 @@ export function activateStudyArea(config, metadata, geojson, error, hydroInputs 
   return sa;
 }
 
+// ---------- administrative units (barangays): display and summary only, never a watershed ----------
+// Minimal CSV parser: header row, comma-separated, double-quoted fields may contain commas or "" escapes.
+export function parseCsv(text) {
+  const rows = [];
+  let row = [], f = '', q = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (q) { if (c === '"' && text[i + 1] === '"') { f += '"'; i++; } else if (c === '"') q = false; else f += c; continue; }
+    if (c === '"') q = true;
+    else if (c === ',') { row.push(f); f = ''; }
+    else if (c === '\n' || c === '\r') { if (c === '\r' && text[i + 1] === '\n') i++; row.push(f); f = ''; if (row.some(v => v !== '')) rows.push(row); row = []; }
+    else f += c;
+  }
+  if (f !== '' || row.length) { row.push(f); if (row.some(v => v !== '')) rows.push(row); }
+  const [head, ...body] = rows;
+  return body.map(r => Object.fromEntries(head.map((h, k) => [h.trim(), (r[k] ?? '').trim()])));
+}
+const num = v => (v === '' || v == null || !Number.isFinite(+v) ? null : +v);
+// Join polygons (GeoJSON, lon/lat) with statistics rows on a shared code (default `psgc`).
+export function buildBarangays(geojson, csvText, meta = null, key = 'psgc') {
+  const errors = [], rows = csvText ? parseCsv(csvText) : [];
+  const byKey = new Map(rows.map(r => [String(r[key]), r]));
+  const units = [];
+  for (const ft of geojson?.features ?? []) {
+    const code = String(ft.properties?.[key] ?? '');
+    let polys;
+    try { polys = extractPolygons(ft).polys; } catch (e) { errors.push(`${code}: ${e.message}`); continue; }
+    const r = byKey.get(code);
+    if (!r) errors.push(`${code} (${ft.properties?.name ?? '?'}): no statistics row`);
+    units.push({
+      code, name: r?.name || ft.properties?.name || code, polys, urban: r?.urban ?? null,
+      pop2015: num(r?.pop2015), pop2020: num(r?.pop2020), pop2024: num(r?.pop2024), hh2024: num(r?.hh2024),
+      hhsize: num(r?.hhsize2024), growth: num(r?.agr_2020_2024), areaKm2: num(r?.area_km2_approx), density: num(r?.density_approx),
+    });
+  }
+  const codes = new Set(units.map(u => u.code));
+  rows.forEach(r => { if (!codes.has(String(r[key]))) errors.push(`${r[key]} (${r.name}): no polygon`); });
+  const sum = f => units.reduce((s, u) => s + (u[f] ?? 0), 0);
+  return { units, meta, errors, totals: { count: units.length, pop2024: sum('pop2024'), pop2020: sum('pop2020'), hh2024: sum('hh2024') } };
+}
+// any vertex of one polygon inside the other (approximate overlap for simplified outlines)
+export function polygonsOverlap(a, b) {
+  const inside = (pt, polys) => polys.some(p => pointInRing(pt[0], pt[1], p[0]) && !p.slice(1).some(h => pointInRing(pt[0], pt[1], h)));
+  return a.some(p => p[0].some(pt => inside(pt, b))) || b.some(p => p[0].some(pt => inside(pt, a)));
+}
+
 // Loader. `fetchText` is injectable (fetch in the browser, fs in Node). Never throws: any failure => fallback.
 export async function loadStudyArea(configPath = 'data/study-area.json', fetchText = defaultFetch) {
   let config = {}, metadata = null, geojson = null, error = null;
@@ -250,6 +296,21 @@ export async function loadStudyArea(configPath = 'data/study-area.json', fetchTe
     await get('catchment', oc?.boundaryFile); await get('catchmentMeta', oc?.metadataFile);
     await get('streams', hy?.streamsFile); await get('outlet', hy?.outletFile); await get('demPreview', hy?.demPreview);
   }
-  return activateStudyArea(config, metadata, geojson, error, hydro);
+  const sa = activateStudyArea(config, metadata, geojson, error, hydro);
+  // raw lon/lat shapes for flat (2D) maps
+  sa.raw = { reserve: sa.gis ? geojson : null, catchment: hydro?.catchment ?? null, outlet: hydro?.outlet ?? null };
+  // administrative units (optional): a missing or broken file is reported, never fatal
+  const adm = config.gis?.administrative?.barangays;
+  sa.barangays = null;
+  if (adm?.boundaryFile) {
+    try {
+      const gj = JSON.parse(await fetchText(adm.boundaryFile));
+      const csv = adm.statsFile ? await fetchText(adm.statsFile).catch(e => { console.warn('[barangays]', e.message); return ''; }) : '';
+      const meta = adm.metadataFile ? await fetchText(adm.metadataFile).then(JSON.parse).catch(() => null) : null;
+      sa.barangays = { ...buildBarangays(gj, csv, meta), label: config.gis.administrative.label ?? null };
+      sa.barangays.errors.forEach(w => console.warn('[barangays]', w));
+    } catch (e) { console.warn('[barangays] not loaded:', e.message); }
+  }
+  return sa;
 }
 function defaultFetch(p) { return fetch(p).then(r => { if (!r.ok) throw new Error(`${p}: HTTP ${r.status}`); return r.text(); }); }

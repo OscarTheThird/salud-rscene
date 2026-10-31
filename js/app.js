@@ -2,7 +2,9 @@ import { createScene } from './scene.js';
 import * as sim from './sim.js';
 import { forecastChart, consumptionChart, levelGauge, spark, THRESHOLDS, lineSample } from './charts.js';
 import { UNITS, cnColor } from './landuse.js';
-import { loadStudyArea } from './studyarea.js';
+import { loadStudyArea, extractPolygons, polygonsOverlap } from './studyarea.js';
+import { createGisMap, METRICS, BASEMAPS } from './gismap.js';
+import * as wxm from './weather.js';
 
 // study area (name + GIS boundary + hydrological area) must be active before the simulation starts
 const SA = await loadStudyArea();
@@ -57,12 +59,12 @@ $$('[data-layer]').forEach(i => { if (i.dataset.layer !== 'perm' && !i.checked) 
 // true = open. Collapsed panels in a side-by-side row shrink to a 40 px strip; in the right-hand stack they shrink to
 // their header bar. Either way the neighbours take the space. At least one panel per row always stays open.
 const PANEL_DEFAULTS = {
-  'p-map': true, 'p-predictive': true, 'p-status': true,                          // top row
-  'p-consumption': false, 'p-areas': true, 'p-pumps': true, 'p-alerts': true,     // bottom row
+  'p-map': true, 'p-predictive': true,                                            // top row
+  'p-consumption': true, 'p-areas': true, 'p-pumps': true, 'p-alerts': true, 'p-status': true,    // bottom dock (desktop: one tab shown)
   layers: false,      // Layers list over the map (collapsed = one "Layers" button)
-  details: false,     // scenario panel: 5-step chain + model inputs strip
+  details: true,      // outlook panel: 5-step chain + model inputs, always shown
 };
-const PANEL_ROWS = [['p-map', 'p-predictive', 'p-status'], ['p-consumption', 'p-areas', 'p-pumps', 'p-alerts']];
+const PANEL_ROWS = [['p-map', 'p-predictive'], ['p-consumption', 'p-areas', 'p-pumps', 'p-alerts', 'p-status']];
 const PANEL_NAMES = { 'p-map': 'map', 'p-predictive': 'scenario panel', 'p-status': 'Water Availability', 'p-consumption': 'Water Demand', 'p-areas': 'Supply vs Demand by Area', 'p-pumps': 'Water Distribution', 'p-alerts': 'Decision Support' };
 const panelOpen = { ...PANEL_DEFAULTS };
 const CHEVRON = '<svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
@@ -81,7 +83,7 @@ function togglePanel(id, open = !panelOpen[id]) {
   update();                          // reopened panels show current data at once (charts redraw at their new size)
 }
 function applyPanels() {
-  const rightClosed = !panelOpen['p-predictive'] && !panelOpen['p-status'];
+  const rightClosed = !panelOpen['p-predictive'];
   for (const row of PANEL_ROWS) for (const id of row) {
     const p = document.getElementById(id), open = panelOpen[id], b = p.querySelector('.ptoggle');
     const last = !isMobile && open && row.filter(x => panelOpen[x]).length === 1;
@@ -94,7 +96,11 @@ function applyPanels() {
   }
   $('.top').classList.toggle('map-collapsed', !panelOpen['p-map']);
   $('.top').classList.toggle('right-collapsed', rightClosed);
-  $('.right').classList.toggle('one-collapsed', !rightClosed && (!panelOpen['p-predictive'] || !panelOpen['p-status']));
+  // desktop grid: collapsed bottom panels tuck to the left; with 2 or fewer open, the outlook extends down beside them
+  const c = $('.content'), openBottom = PANEL_ROWS[1].filter(x => panelOpen[x]).length;
+  c.classList.toggle('map-collapsed', !panelOpen['p-map']);
+  c.classList.toggle('right-collapsed', rightClosed);
+  c.classList.toggle('tall', !rightClosed);
   $('#layers').classList.toggle('collapsed', !panelOpen.layers);
   $('#layersBtn').setAttribute('aria-expanded', String(panelOpen.layers));
   $('#layersBtn').title = panelOpen.layers ? 'Hide map layers' : 'Show map layers';
@@ -103,6 +109,41 @@ function applyPanels() {
   $('#detailsBtn').title = panelOpen.details ? 'Hide the 5-step chain and model inputs' : 'Show the 5-step chain and model inputs';
 }
 applyPanels();
+
+// ---------- bottom dock (desktop): one operations panel at a time, picked by tabs that show each panel's status ----------
+const DOCK = ['p-alerts', 'p-status', 'p-areas', 'p-pumps', 'p-consumption'];
+const DOCK_NAMES = { 'p-status': 'Water Availability', 'p-alerts': 'Decision Support', 'p-pumps': 'Water Distribution', 'p-areas': 'Supply vs Demand', 'p-consumption': 'Water Demand' };
+let dock = 'p-alerts';
+const dockBar = document.createElement('div');
+dockBar.className = 'docktabs'; dockBar.setAttribute('role', 'tablist'); dockBar.setAttribute('aria-label', 'Operations panels');
+dockBar.innerHTML = DOCK.map(id => `<button type="button" role="tab" data-dock="${id}" aria-controls="${id}"><span class="dt-name">${DOCK_NAMES[id]}</span><span class="dt-badge" id="dt-${id}"></span></button>`).join('');
+$('.bottom').prepend(dockBar);
+function setDock(id) {
+  dock = id;
+  DOCK.forEach(x => document.getElementById(x).classList.toggle('dock-on', x === id));
+  $$('[data-dock]').forEach(b => { const on = b.dataset.dock === id; b.classList.toggle('active', on); b.setAttribute('aria-selected', String(on)); b.tabIndex = on ? 0 : -1; if (on) b.classList.remove('pulse'); });
+}
+dockBar.addEventListener('click', e => { const b = e.target.closest('[data-dock]'); if (b) { setDock(b.dataset.dock); update(); } });
+dockBar.addEventListener('keydown', e => {
+  if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+  const i = (DOCK.indexOf(dock) + (e.key === 'ArrowRight' ? 1 : DOCK.length - 1)) % DOCK.length;
+  setDock(DOCK[i]); update(); $(`[data-dock="${DOCK[i]}"]`).focus();
+});
+setDock(dock);
+// each tab's badge: the one number or state an operator needs before opening it
+function renderDockTabs() {
+  const set = (id, cls, txt) => { const el = $('#dt-' + id); el.className = 'dt-badge ' + cls; el.textContent = txt; };
+  const st = supplyStatus();
+  set('p-status', { green: 'ok', yellow: 'warn', orange: 'warn', red: 'crit' }[st.lv], st.label);
+  const chip = $('#dsChip');
+  const nAlerts = (/(\d+) active alert/.exec($('#dsHead').textContent) ?? [])[1];
+  set('p-alerts', { normal: 'ok', advisory: 'warn', warning: 'warn', critical: 'crit' }[chip.className.split(' ')[1]] ?? 'ok', nAlerts ? `${chip.textContent} · ${nAlerts}` : chip.textContent);
+  const zs = Object.values(S.svc.zones), none = zs.filter(z => z.status === 'none').length, short = zs.filter(z => z.status === 'shortage').length;
+  set('p-areas', none ? 'crit' : short ? 'warn' : 'ok', none ? `${none} NO SUPPLY` : short ? `${short} SHORT` : `${zs.length}/${zs.length} OK`);
+  const failed = S.pumps.filter(p => p.status === 'failed'), running = S.pumps.filter(p => p.status === 'running').length;
+  set('p-pumps', failed.length ? 'crit' : 'ok', failed.length ? `${failed.map(p => p.short).join(', ').toUpperCase()} FAILED` : `${running}/${S.pumps.length} RUNNING`);
+  set('p-consumption', 'info', `${fmt(S.svc.demand)} m³/day`);
+}
 $('#layersBtn').addEventListener('click', () => { panelOpen.layers = !panelOpen.layers; applyPanels(); });
 $('#detailsBtn').addEventListener('click', () => { panelOpen.details = !panelOpen.details; applyPanels(); renderPredictive(); });
 
@@ -110,7 +151,7 @@ $('#detailsBtn').addEventListener('click', () => { panelOpen.details = !panelOpe
 const PANEL_DEFAULTS_MOBILE = {
   'p-map': true, 'p-predictive': true, 'p-alerts': true,
   'p-status': false, 'p-areas': false, 'p-pumps': false, 'p-consumption': false,
-  layers: false, details: false,
+  layers: false, details: true,
 };
 // Raise any HTML text under 12 px to 12 px while in mobile mode (SVG diagram text scales with its viewBox and is
 // left alone). Runs on new nodes only, so it keeps up with re-rendered panels; undone when leaving mobile mode.
@@ -137,7 +178,7 @@ addEventListener('keydown', e => {
   else if (selected) { selected = null; gl.selectLabel(null); renderInfo(); }
   else if (panelOpen.layers) { panelOpen.layers = false; applyPanels(); }
 });
-const syncSpeedBar = () => { $$('[data-mx]').forEach(b => b.classList.toggle('active', +b.dataset.mx === speed)); $('#sbSpeed').textContent = speed + '×'; };
+const syncSpeedBar = () => { $$('[data-mx]').forEach(b => b.classList.toggle('active', +b.dataset.mx === speed)); $('#sbSpeed').textContent = S.scenario === 'forecast' ? 'LIVE' : speed + '×'; };
 $$('[data-mx]').forEach(b => b.addEventListener('click', () => $(`#speed [data-x="${b.dataset.mx}"]`).click()));
 $$('#speed button').forEach(b => b.addEventListener('click', () => setTimeout(syncSpeedBar)));
 let hintShown = false;
@@ -189,6 +230,123 @@ const zoneHH = z => S.areas.filter(a => a.zone === z).reduce((s, a) => s + a.hou
 const zoneNames = z => S.svc.rows.filter(r => r.zone === z).map(r => short(r.name)).join(', ');
 const LV_COL = { green: '#2ee66f', yellow: '#f5c542', orange: '#ff9f43', red: '#ff4d57' };
 const levelColor = v => (v >= CRIT || v < LOW ? '#ff4d57' : v >= 80000 || v < S.rotThr ? '#ff9f43' : '#2f8cff');
+
+// ---------- live outlook: real weather forecast (Open-Meteo) for the study area ----------
+// The point comes from data/study-area.json `weather.point` (inside the reserve, Catbalogan City); without it, the centre
+// of the study-area scene. In live mode the simulation clock runs in real time and the 3D rain follows the current hour.
+// Only the weather is real; baseflow, demand, reservoir, treatment and pumps stay simulated.
+const WX_POINT = SA.weather?.point ?? (SA.gis ? SA.gis.fromScene([0, 0]) : null);   // [lon, lat]
+const WX_PLACE = SA.weather?.label ?? SA.name;
+const wxOn = () => S.scenario === 'forecast';
+const wxLive = () => wxOn() && S.m.wx;                        // forecast data drives the model right now
+const wxData = () => !!S.m.wx;                                  // real weather (the live forecast) drives the model
+const dayTime = t => new Date(t).toLocaleString('en-US', { weekday: 'short', hour: 'numeric', minute: '2-digit' });
+const weekday = t => new Date(t).toLocaleDateString('en-US', { weekday: 'long' });
+let wxLoading = null, liveWx = null;                          // the live forecast
+async function loadForecast(force = false) {
+  if (!WX_POINT) throw new Error('no study-area location for the forecast');
+  if (!force && liveWx && Date.now() - liveWx.fetchedAt < 1800000) return (S.wx = liveWx);   // reuse for 30 min
+  wxLoading ??= wxm.fetchForecast(WX_POINT[1], WX_POINT[0]).finally(() => { wxLoading = null; });
+  liveWx = await wxLoading;
+  S.wx = liveWx;
+  return liveWx;
+}
+// live mode refreshes the forecast every hour in the background (a failed refresh keeps the last one)
+function refreshForecastQuietly() {
+  if (wxLoading || !liveWx || Date.now() - liveWx.fetchedAt < 1800000) return;   // every 30 min while live
+  loadForecast(true).then(() => update()).catch(e => console.warn('[forecast refresh]', e));
+}
+// rain in the current hour, from the forecast: drives the 3D rain, the sidebar card and "Right now"
+const rainNowInfo = () => { const mm = S.wx ? wxm.rainNow(S.wx, S.t) : null; return { mm, ...wxm.intensity(mm) }; };
+const GROUND = { I: 'dry, so most rain soaks in', II: 'normal', III: 'wet, so more rain runs off' };
+// storage chart; in live mode it also carries the hourly rain bars
+const drawForecastChart = () => forecastChart($('#fchart'), S, fc, fcNo, wxOn() && S.wx ? rainSeries() : null);
+// hourly forecast rain over the storage chart's window (36 h back to 168 h ahead), for the rain bars
+function rainSeries() {
+  const a = S.t - 36 * 3.6e6, b = S.t + 168 * 3.6e6, out = [];
+  for (let i = 0; i < S.wx.t.length; i++) if (S.wx.t[i] > a && S.wx.t[i] <= b && S.wx.p[i] !== null) out.push({ t: S.wx.t[i], mm: S.wx.p[i] });
+  return out;
+}
+function renderLiveHeader() {
+  const live = wxOn();
+  $('#p-predictive').classList.toggle('live', live);
+  document.documentElement.classList.toggle('live-clock', live);
+  $('#predTitle').firstChild.textContent = live ? 'LIVE WATER OUTLOOK' : 'WHAT-IF WATER OUTLOOK';
+  $('#predSub').textContent = live ? '· real weather forecast for Catbalogan → simulated water system' : '· test a weather scenario on the simulated water system';
+  $('#sbSpeed').textContent = live ? 'LIVE' : speed + '×';
+}
+// the outlook at a glance, for operators: weather tiles (real forecast or what-if) + a water-supply card (simulated)
+const ICON_SUN = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4.5" fill="#f5c542"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1" stroke="#f5c542" stroke-width="2" stroke-linecap="round"/></svg>';
+const ICON_RAIN = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 14a4.5 4.5 0 0 1 .6-9 6 6 0 0 1 11.2 2A3.5 3.5 0 0 1 18 14z" fill="#cfd8e3"/><path d="M8 17l-1 3M12 17l-1 3M16 17l-1 3" stroke="#6fb8ff" stroke-width="2" stroke-linecap="round"/></svg>';
+// next 12 hours of forecast rain, one bar per hour (Open-Meteo stamps each hour at its end)
+function hourlyStrip() {
+  const H = 3.6e6, h0 = Math.floor(S.t / H) * H, hrs = [];
+  for (let k = 1; k <= 12; k++) { const t = h0 + k * H, i = S.wx.t.indexOf(t); hrs.push({ start: t - H, mm: i >= 0 ? S.wx.p[i] ?? 0 : 0 }); }
+  const max = Math.max(2, ...hrs.map(h => h.mm));
+  const lab = t => new Date(t).toLocaleTimeString('en-US', { hour: 'numeric' }).replace(' ', '').toLowerCase();
+  return `<div class="olhourly" title="Forecast rain for each of the next 12 hours (mm in that hour). Bars scaled to ${max.toFixed(1)} mm.">
+    <small class="olhl">Next 12 hours · mm of rain per hour</small><div class="olhbars">${hrs.map((h, k) => `<div class="olhb${k === 0 ? ' now' : ''}"><em>${h.mm >= 0.1 ? h.mm.toFixed(1) : ''}</em><i style="height:${h.mm >= 0.1 ? Math.max(8, h.mm / max * 100) : 3}%"></i><span>${lab(h.start)}</span></div>`).join('')}</div></div>`;
+}
+function renderOutlook() {
+  const el = $('#outlook');
+  const v72 = fc[72].v, T = fc.totals(72), dl = daysToLow(fcLong), p0 = S.volume / CAP, p3 = v72 / CAP;
+  const tile = (k, v, sub = '', cls = '', icon = '') => `<div class="olt ${cls}"><small>${k}</small><b>${icon}${v}</b>${sub ? `<em>${sub}</em>` : ''}</div>`;
+  const GROUND_T = { I: ['Dry', 'rain soaks in'], II: ['Normal', 'average soaking'], III: ['Wet', 'more rain runs off'] };
+  let head, tiles, extra = '';
+  if (wxLive()) {
+    const H = 3.6e6, sum = h => wxm.sumWindow(S.wx, 'p', S.t, S.t + h * H).sum, now = rainNowInfo(), temp = wxm.tempAt(S.wx, S.t);
+    const pk = sim.scenarioPeak(S), p5 = wxm.antecedent5d(S.wx, S.t), g = GROUND_T[S.m.amc];
+    head = `<span class="oltag real">REAL</span>Weather forecast · Catbalogan`;
+    const hr = t => new Date(t).toLocaleTimeString('en-US', { hour: 'numeric' }).replace(' ', '').toLowerCase();
+    const h0 = Math.floor(S.t / H) * H;
+    tiles = tile(`Right now · ${hr(h0)}–${hr(h0 + H)}`, now.word, `${now.level ? now.mm.toFixed(1) + ' mm/h · ' : ''}${temp === null ? '' : temp.toFixed(0) + ' °C'}`, now.level ? 'rain' : '', now.level ? ICON_RAIN : ICON_SUN)
+      + tile('Next 24 h', `${sum(24).toFixed(0)} mm`, 'rain')
+      + tile('Next 3 days', `${sum(72).toFixed(0)} mm`, 'rain')
+      + tile('Wettest day', pk.P >= 1 ? `${pk.P.toFixed(0)} mm` : 'None', pk.P >= 1 && pk.t ? weekday(pk.t) : 'no rainy day ahead')
+      + tile('Ground', g[0], `${g[1]} · ${p5.toFixed(0)} mm in 5 d`);
+    extra = hourlyStrip();
+  } else {
+    const sc = SCEN[S.scenario], pk = sim.scenarioPeak(S), g = GROUND_T[pk.amc];
+    head = wxOn() ? '<span class="oltag sim">ENDED</span>Live forecast window passed · light rain assumed'
+      : `<span class="oltag whatif">WHAT-IF</span>${sc.label} · a test, not a prediction`;
+    tiles = tile(sc.storm ? 'Rain at peak' : 'Rain', `${pk.P} mm/day`, sc.storm ? 'storm builds over 3 h, eases after 30 h' : 'every day of the test', '', pk.P >= 5 ? ICON_RAIN : ICON_SUN)
+      + tile('Ground', g[0], g[1])
+      + tile('Demand', sc.dmd === 1 ? 'Normal' : `${sc.dmd > 1 ? '+' : '−'}${Math.round(Math.abs(sc.dmd - 1) * 100)}%`, sc.dmd > 1 ? 'above a normal day' : sc.dmd < 1 ? 'below a normal day' : 'a normal day');
+  }
+  // water-supply verdict + one short reason
+  // service first (what people get at the tap), then the reservoir
+  const zs = Object.values(S.svc.zones), noneZ = zs.filter(z => z.status === 'none'), shortZ = zs.filter(z => z.status === 'shortage');
+  const causes = [...S.pumps.filter(p => p.status === 'failed').map(p => `${p.short} is offline`), ...((S.wtpFactor ?? 1) < 1 ? [`treatment runs at ${pctf(S.wtpFactor)} of capacity`] : [])];
+  const svcWhy = causes.length ? causes.join(' and ') : 'demand is larger than what can be delivered';
+  const verdict = noneZ.length ? ['crit', `${noneZ.length === 1 ? noneZ[0].name.replace('Service ', '') : noneZ.length + ' areas'} without supply`]
+    : shortZ.length ? ['warn', `${shortZ.length} of ${zs.length} areas short`]
+    : T.spill > 1 ? ['crit', `Overflow ~${fmt(T.spill)} m³`] : S.volume < LOW ? ['crit', 'Below critical level']
+    : dl !== null && dl < 7 ? ['crit', `Critical in ~${dl.toFixed(1)} days`] : S.rotActive ? ['warn', 'Rationing active']
+    : dl !== null && dl < 14 ? ['warn', `Critical in ~${dl.toFixed(0)} days`] : ['ok', 'No shortage or overflow'];
+  const why = noneZ.length || shortZ.length ? svcWhy
+    : T.spill > 1 ? (T.runoff >= 0.2 * T.inflow ? 'more rain than the reservoir can hold' : 'the reservoir is full and the river keeps flowing in')
+    : v72 > S.volume + 500 ? (T.runoff >= 0.2 * T.inflow ? 'rain runoff is filling it' : 'river base flow is larger than demand')
+    : v72 < S.volume - 500 ? 'demand is larger than what flows in' : 'inflow and demand are about equal';
+  const mk = (p, cls) => `<i class="${cls}" style="left:${Math.min(100, Math.max(0, p * 100)).toFixed(1)}%"></i>`;
+  el.innerHTML = `<div class="olsec"><div class="olh">${head}</div><div class="oltiles ${wxLive() ? 'live' : ''}">${tiles}</div>${extra}</div>
+    <div class="olsec"><div class="olh"><span class="oltag sim">SIMULATED</span>Water supply · next 3 days</div>
+      <div class="olsup">
+        <div class="olpct"><b>${pctf(p0)}</b><small>now</small></div>
+        <div class="olarrow ${p3 > p0 + 0.005 ? 'up' : p3 < p0 - 0.005 ? 'dn' : ''}">→</div>
+        <div class="olpct"><b>${pctf(p3)}</b><small>in 3 days</small></div>
+        <div class="olbar" title="Reservoir level: now (solid) and in 3 days (ring). Ticks: critical 15%, rationing ${Math.round(S.rotThr / CAP * 100)}%, flood buffer 90%.">
+          <span class="fill" style="width:${(Math.min(1, p0) * 100).toFixed(1)}%"></span>${mk(LOW / CAP, 'tick')}${mk(S.rotThr / CAP, 'tick')}${mk(CRIT / CAP, 'tick')}${mk(p3, 'ring')}</div>
+        <div class="olverdict"><span class="olchip ${verdict[0]}">${verdict[1]}</span><small>because ${why}</small></div>
+      </div></div>`;
+}
+function renderWxNote() {
+  const el = $('#wxNote');
+  el.hidden = !wxOn();
+  if (!wxOn() || !S.wx) return;
+  const link = `<a href="${wxm.WX_SOURCE.url}" target="_blank" rel="noopener">Open-Meteo.com</a>`;
+  el.title = `Forecast point: ${WX_PLACE}, ${WX_POINT[1].toFixed(3)}° N, ${WX_POINT[0].toFixed(3)}° E (Open-Meteo answers for its nearest grid cell, ${S.wx.lat.toFixed(3)}° N, ${S.wx.lon.toFixed(3)}° E). Hourly model forecast, not a rain gauge; refreshed every hour while live. The clock runs in real time. Ground wetness (AMC ${S.m.amc}) comes from the past 5 days of forecast-model rain. Baseflow, demand, reservoir, treatment and pumps are SIMULATED. Weather data by Open-Meteo.com (${wxm.WX_SOURCE.license}).`;
+  el.innerHTML = `Forecast for <b>${WX_PLACE}</b> · hourly data · updated ${clock(S.wx.fetchedAt)}, next ~${clock(S.wx.fetchedAt + 1800000)} · model forecast by ${link} (${wxm.WX_SOURCE.license}), not a rain gauge · water system <b>SIMULATED</b>`;
+}
 
 let selected = null, range = 30, sortBy = 'gap', speed = 1, modelOpen = false;
 const dismissed = new Set();
@@ -280,6 +438,14 @@ function computeAlerts() {
     add(`rain-${S.scenario}`, S.scenario === 'heavy' ? 'warning' : 'advisory', 'RUNOFF', `${S.scenario === 'heavy' ? 'Typhoon' : 'Monsoon'} rainfall${warn ? ` (PAGASA-style ${warn.level})` : ''} expected to raise watershed runoff to ~${fmt(peakRunoff(S.lu))} m³/h (est.).`,
       S.scenario === 'heavy' ? 'Activate the MDRRMO flood protocol; intake paused for turbidity.' : 'Monitor storage and landslide-prone slopes.', 'forest');
   }
+  // forecast scenario: PAGASA colour bands applied to the real forecast (an estimate, never an official warning)
+  if (wxLive()) {
+    const d24 = wxm.max24h(S.wx, S.t, 72), b24 = wxm.band24h(d24.mm);
+    const REC24 = { Yellow: 'Monitor storage and intake turbidity; follow official PAGASA advisories.', Orange: 'Prepare a controlled release and a possible intake pause for turbidity; coordinate with the CDRRMO.', Red: 'Coordinate with the CDRRMO on the flood protocol; store treated water before a possible intake pause.' };
+    if (b24) add('fc-24h', wxm.BAND_LEVEL[b24], 'RAINFALL', `Forecast: ~${fmt(d24.mm)} mm of rain in 24 h from ${dayTime(d24.t)} (PAGASA 24 h advisory band ${b24}; estimated from the model forecast, not an official PAGASA advisory).`, REC24[b24], 'forest');
+    const h1 = wxm.maxHourly(S.wx, S.t, S.t + 24 * 3.6e6), bh = wxm.bandHourly(h1.mm);
+    if (bh) add('fc-1h', wxm.BAND_LEVEL[bh], 'RAINFALL', `Forecast: up to ~${h1.mm.toFixed(1)} mm in one hour around ${dayTime(h1.t)} (PAGASA heavy-rainfall band ${bh}; estimate, PAGASA issues the official warnings).`, 'Watch for intake turbidity and local flooding; check PAGASA heavy rainfall warnings.', 'forest');
+  } else if (wxOn() && S.wx) add('fc-horizon', 'advisory', 'RAINFALL', `Past the forecast window (ends ${new Date(S.wx.t1).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}): rainfall now assumes Light-rain conditions.`, 'Reload the page to restart the simulation at the current time.', 'forest');
   if (S.lu.forestLossPct > 1) {
     const r0 = peakRunoff(LU_INTACT), r1 = peakRunoff(S.lu);
     add('forest-loss', S.lu.forestLossPct >= 30 ? 'warning' : 'advisory', 'RUNOFF', `Upland forest loss ${S.lu.forestLossPct.toFixed(0)}%: less infiltration${r0 > 0 ? `, peak runoff +${((r1 / r0 - 1) * 100).toFixed(0)}%` : ''}, baseflow −${(60 * S.lu.clearedArea).toFixed(0)}%.`, 'Prioritize reforestation (NGP) and enforce anti-kaingin ordinances in the catchment.', 'forest');
@@ -328,7 +494,7 @@ function renderAlerts() {
     : shown.length ? 'All service areas supplied; continue routine monitoring' : 'No active alerts (dismissed items hidden)';
   // pulse the chip once when a new alert appears (not on first load)
   const ids = new Set(all.filter(a => a.lv !== 'normal').map(a => a.id));
-  if (seenAlertIds && [...ids].some(id => !seenAlertIds.has(id))) { chip.classList.remove('pulse'); void chip.offsetWidth; chip.classList.add('pulse'); }
+  if (seenAlertIds && [...ids].some(id => !seenAlertIds.has(id))) { chip.classList.remove('pulse'); void chip.offsetWidth; chip.classList.add('pulse'); if (dock !== 'p-alerts') $('[data-dock="p-alerts"]')?.classList.add('pulse'); }
   seenAlertIds = ids;
   const rows = active ? act : [];
   const vis = alertsExpanded ? rows : rows.slice(0, DS_TOP);
@@ -344,22 +510,76 @@ function renderAlerts() {
 // ---------- predictive water availability ----------
 function renderChain() {
   const m = S.m, st = supplyStatus();
-  const node = (n, label, val, sub, color, tip) => `<div class="node" style="--nc:${color}" title="${tip}"><small>${n} · ${label}</small><b>${val}</b><i>${sub}</i></div>`;
+  const node = (n, label, val, sub, color) => `<div class="node${chainPop.step === n ? ' on' : ''}" style="--nc:${color}" data-step="${n}" tabindex="0" role="button" aria-describedby="chainPop"><small>${n} · ${label}</small><b>${val}</b><i>${sub}</i></div>`;
   const warn = sim.rainWarning(m.P);
   const ro = m.P > 0.5 ? m.Q / m.P : 0;
   $('#chain').innerHTML = [
-    node(1, 'Rainfall', `${m.P < 10 ? m.P.toFixed(1) : fmt(m.P)} mm/d`, warn ? `PAGASA-style ${warn.level} level` : m.P < 1 ? 'No significant rain' : 'Scenario rainfall (24 h)', warn ? warn.color : m.P >= 5 ? '#5fd0ff' : '#f5c542', 'Scenario rainfall over the watershed (simulated, not a live forecast)'),
+    node(1, 'Rainfall', `${m.P < 10 ? m.P.toFixed(1) : fmt(m.P)} mm/d`, warn ? `PAGASA-style ${warn.level} level` : m.P < 1 ? 'No significant rain' : m.wx ? 'forecast · 12 h back + 12 h ahead' : 'Scenario rainfall (24 h)', warn ? warn.color : m.P >= 5 ? '#5fd0ff' : '#f5c542', m.wx ? 'Real forecast rainfall over the reserve (Open-Meteo), 24 h total centred on now' : 'Scenario rainfall over the watershed (simulated, not a live forecast)'),
     node(2, 'Runoff', `${fmt(m.runoff)} m³/h`, m.P < 1 ? 'No rain to run off' : `now: ${pctf(ro)} of rain runs off (est.)`, m.runoff > 1500 ? '#ff9f43' : '#5fd0ff', 'Estimated with the SCS Curve Number method from the permeability / land-cover classes'),
     node(3, 'Water balance', `${sgn(m.net)} m³/h`, S.spilling ? `overflowing ${fmt(S.spillRate)} m³/h` : m.net >= 0 ? 'storage rising' : 'storage falling', S.spilling ? '#5fd0ff' : m.net >= 0 ? '#2ee6a0' : '#ff9f43', 'Inflow + intake − pumped supply − evaporation (− spill when full)'),
     node(4, 'Demand', `${fmt(m.demand)} m³/h`, S.rotActive ? `rationed · ${fmt(m.target)} delivered` : `homes ${fmt(m.hh)} · business ${fmt(m.com)}`, S.rotActive ? '#b48cff' : '#ffb36b', 'Household + commercial demand across all service areas'),
-    node(5, 'Water availability', st.label, `${daysTxt(daysToLow(fcLong))} of supply`, LV_COL[st.lv], st.reason),
+    node(5, 'Availability', st.label, `${daysTxt(daysToLow(fcLong))} of supply`, LV_COL[st.lv], st.reason),
   ].join('<span class="carr"></span>');
+  if (chainPop.step) showChainPop(chainPop.step);   // keep an open card in step with the live numbers
+}
+
+// ---------- 5-step chain: hover / focus / tap a step for a card that explains its number ----------
+const chainPop = { step: 0 };
+function chainCard(n) {
+  const m = S.m, st = supplyStatus(), km2 = sim.catchmentKm2(), live = m.wx;
+  const row = (a, b) => `<div class="cpr"><span>${a}</span><b>${b}</b></div>`;
+  const tag = t => `<span class="oltag ${t === 'REAL' ? 'real' : t === 'WHAT-IF' ? 'whatif' : 'sim'}">${t}</span>`;
+  const mmh = live ? wxm.rainNow(S.wx, S.t) : null;
+  const GW = { I: 'Dry', II: 'Normal', III: 'Wet' };
+  if (n === 1) return `<h5>${tag(live ? 'REAL' : 'WHAT-IF')}Rainfall over the watershed</h5>
+    <p class="cpbig">${m.P.toFixed(1)} mm/day</p>
+    ${live ? row('Rain this hour (Right now)', `${(mmh ?? 0).toFixed(1)} mm/h`) + row('24 h total used here', `${m.P.toFixed(1)} mm`) + row('Window', '12 h back + 12 h ahead') + row('Next 24 h only', `${wxm.sumWindow(S.wx, 'p', S.t, S.t + 24 * 3.6e6).sum.toFixed(1)} mm`)
+      : row('Scenario', SCEN[S.scenario].label) + row('Rain at peak', `${SCEN[S.scenario].P} mm/day`)}
+    <p>${live ? `The runoff method works with rain per day, so the model uses the 24 h total around now. ${m.P.toFixed(1)} mm/day is about ${(m.P / 24).toFixed(1)} mm per hour on average; "Right now" is this hour only.` : SCEN[S.scenario].storm ? `A what-if, not a forecast. The storm builds from light rain to ${SCEN[S.scenario].P} mm/day over 3 h, holds until hour 30, then eases.` : 'A fixed what-if value, not a forecast.'}</p>`;
+  if (n === 2) return `<h5>${tag('SIMULATED')}Runoff: rain that flows to the reservoir</h5>
+    <p class="cpbig">${fmt(m.runoff)} m³/h</p>
+    ${row('Rain (step 1)', `${m.P.toFixed(1)} mm/day`)}${row('Rain absorbed before runoff (Iₐ, area average)', `${m.Ia.toFixed(1)} mm`)}${row('Runoff depth', `${m.Q.toFixed(2)} mm/day`)}${row('Ground wetness', `${GW[m.amc]} (AMC ${m.amc})`)}${row('Curve number', m.cn.toFixed(1))}${row('Catchment area', `${km2.toFixed(2)} km² (simulated)`)}
+    <p>${m.Q <= 0.001 ? `All ${m.P.toFixed(1)} mm soaks in.` : m.P <= m.Ia ? `Almost all of it soaks in: only ${(m.Q / Math.max(m.P, 0.01) * 100).toFixed(1)}% runs off, from paved and built-up ground. Across the whole area, runoff starts after about ${m.Ia.toFixed(0)} mm of rain.` : `${pctf(m.Q / Math.max(m.P, 0.01))} of the rain runs off; the rest soaks into the soil.`} Method: SCS Curve Number, per land type.</p>`;
+  if (n === 3) return `<h5>${tag('SIMULATED')}Water balance of the raw reservoir</h5>
+    <p class="cpbig">${sgn(m.net)} m³/h</p>
+    ${row('+ River base flow', fmt(m.base))}${row('+ Runoff (step 2)', fmt(m.runoff))}${row('+ Intake pump', fmt(m.pumpIn))}${row('− To treatment plant', fmt(m.treat))}${row('− Evaporation', m.evap.toFixed(1))}${S.spilling ? row('− Spill (overflow)', fmt(S.spillRate)) : ''}${row('= Change in storage', `${sgn(m.net)} m³/h`)}
+    <p>${m.net >= 0 ? 'More water comes in than goes out, so storage rises.' : 'More water goes out than comes in, so storage falls.'} Units: m³ per hour.</p>`;
+  if (n === 4) return `<h5>${tag('SIMULATED')}Demand from the service areas</h5>
+    <p class="cpbig">${fmt(m.demand)} m³/h</p>
+    ${row('Households', `${fmt(m.hh)} m³/h`)}${row('Business / commercial', `${fmt(m.com)} m³/h`)}${row('Per day (all areas)', `${fmt(S.svc.demand)} m³`)}${S.rotActive ? row('Delivered under rationing', `${fmt(m.target)} m³/h`) : ''}
+    <p>Simulated demand follows one daily curve (highest about 1 PM, lowest about 1 AM). Simulated until CWD billing data is connected.</p>`;
+  return `<h5>${tag('SIMULATED')}Water availability</h5>
+    <p class="cpbig">${st.label}</p>
+    ${row('Stored now', `${fmt(S.volume)} m³ (${pctf(S.volume / CAP)})`)}${row('Days of supply', daysTxt(daysToLow(fcLong)))}${row('Critical level', `${fmt(LOW)} m³ (15%)`)}
+    <p>${st.reason}.</p>`;
+}
+function showChainPop(n) {
+  const pop = $('#chainPop'), nodeEl = $(`#chain [data-step="${n}"]`);
+  if (!pop || !nodeEl) return;
+  chainPop.step = n;
+  pop.innerHTML = chainCard(n);
+  pop.hidden = false;
+  // offsets (not screen rects) so the desktop canvas scaling does not matter; #chain is positioned
+  const chain = $('#chain'), w = pop.offsetWidth, lo = chain.offsetLeft, hi = lo + chain.clientWidth - w;
+  pop.style.left = Math.max(lo, Math.min(hi, lo + nodeEl.offsetLeft + nodeEl.offsetWidth / 2 - w / 2)) + 'px';
+  pop.style.top = (chain.offsetTop + chain.offsetHeight + 6) + 'px';
+  $$('#chain .node').forEach(x => x.classList.toggle('on', +x.dataset.step === n));
+}
+function hideChainPop() { chainPop.step = 0; const pop = $('#chainPop'); if (pop) pop.hidden = true; $$('#chain .node').forEach(x => x.classList.remove('on')); }
+{
+  const chain = $('#chain');
+  chain.addEventListener('pointerover', e => { const nd = e.target.closest('[data-step]'); if (nd && e.pointerType === 'mouse') showChainPop(+nd.dataset.step); });
+  chain.addEventListener('pointerleave', e => { if (e.pointerType === 'mouse') hideChainPop(); });
+  chain.addEventListener('click', e => { const nd = e.target.closest('[data-step]'); if (!nd) return; if (+nd.dataset.step === chainPop.step && e.pointerType !== 'mouse') hideChainPop(); else showChainPop(+nd.dataset.step); });
+  chain.addEventListener('focusin', e => { const nd = e.target.closest('[data-step]'); if (nd) showChainPop(+nd.dataset.step); });
+  chain.addEventListener('focusout', e => { if (!chain.contains(e.relatedTarget)) hideChainPop(); });
+  addEventListener('keydown', e => { if (e.key === 'Escape' && chainPop.step) hideChainPop(); });
 }
 function renderInputs() {
   const m = S.m;
   const c = (cls, label, val) => `<div class="inp ${cls}"><span>${label}</span><b>${val}</b></div>`;
-  $('#inputs').innerHTML = `<div class="ttl"><span>MODEL INPUTS · CURRENT HOUR</span><em>m³/h unless noted · estimated · simulation</em></div>` +
-    c('in', 'Rainfall (scenario)', `${m.P.toFixed(1)} mm/d`) + c('in', 'Runoff (estimated)', fmt(m.runoff)) + c('in', 'Reservoir inflow', fmt(m.inflow)) + c('in', 'Intake inflow', fmt(m.pumpIn)) +
+  $('#inputs').innerHTML = `<div class="ttl"><span>MODEL INPUTS · CURRENT HOUR</span><em>m³/h unless noted · estimated · ${m.wx ? 'real weather, simulated water system' : 'simulation'}</em></div>` +
+    c('in', m.wx ? 'Rainfall (forecast)' : 'Rainfall (scenario)', `${m.P.toFixed(1)} mm/d`) + c('in', 'Runoff (estimated)', fmt(m.runoff)) + c('in', 'Reservoir inflow', fmt(m.inflow)) + c('in', 'Intake inflow', fmt(m.pumpIn)) +
     c('out', 'Household demand', fmt(m.hh)) + c('out', 'Commercial demand', fmt(m.com)) + c('out', 'Evaporation', m.evap.toFixed(1)) + c('out', 'Pumped supply', fmt(m.pumpOut));
 }
 const RISK = [['Low', 'r-low'], ['Moderate', 'r-mod'], ['High', 'r-high'], ['Severe', 'r-sev']];
@@ -368,7 +588,9 @@ function risks() {
   return { flood: S.spilling || peak >= CAP ? 3 : peak >= CRIT ? 2 : peak >= 80000 ? 1 : 0, shortage: min < LOW ? 3 : min < S.rotThr ? 2 : min < S.rotThr + 10000 ? 1 : 0 };
 }
 function renderPredictive() {
-  forecastChart($('#fchart'), S, fc, fcNo);
+  drawForecastChart();
+  renderLiveHeader();
+  renderOutlook();
   renderLuQuick();
   renderChain();
   renderInputs();
@@ -395,7 +617,7 @@ function renderPredictive() {
   } else if (S.scenario === 'dry') {
     const h = fcNo.firstBelow(S.rotThr);
     set('', 'i-warn', 'DRY SEASON: STORAGE DECLINING', h !== null ? `Rationing threshold (${Math.round(S.rotThr / 1000)}K m³) projected in ~${fmtH(h)}. Rotation ${S.rotMode === 'off' ? 'is DISABLED.' : 'will start automatically.'}` : 'Net balance negative, but storage stays above the rationing threshold for 7 days.');
-  } else if (S.scenario !== 'light') set('', 'i-warn', 'HIGH INFLOW EXPECTED', `Estimated runoff ${fmt(m.runoff)} m³/h may raise storage ~${Math.max(0, pc(v24)).toFixed(0)}% within 24 h.`);
+  } else if (S.scenario !== 'light' && !(wxOn() && sim.scenarioPeak(S).P < 50)) set('', 'i-warn', 'HIGH INFLOW EXPECTED', `Estimated runoff ${fmt(m.runoff)} m³/h may raise storage ~${Math.max(0, pc(v24)).toFixed(0)}% within 24 h.`);
   else set('ok', 'i-info', 'SUPPLY ADEQUATE', `Net balance ${sgn(m.net)} m³/h; storage ${pc(v24) >= 0 ? '+' : ''}${pc(v24).toFixed(1)}% over 24 h; all thresholds clear.`);
 
   if (modelOpen) renderModelCard();
@@ -403,7 +625,7 @@ function renderPredictive() {
 
 // ---------- permeability / infiltration class (land use × soil group -> curve numbers) ----------
 const LU_INTACT = S.lu;
-const peakRunoff = lu => { const sc = SCEN[S.scenario]; return sim.catchmentRunoff(sc.P, sc.amc, lu).Q * sim.catchmentKm2() * 1000 / 24; };
+const peakRunoff = lu => { const pk = sim.scenarioPeak(S); return sim.catchmentRunoff(pk.P, pk.amc, lu).Q * sim.catchmentKm2() * 1000 / 24; };
 function clearSlider() {
   const v = Math.round(S.lu.cleared * 100);
   return `<div class="luctl"><span>What-if: upland forest cleared<br><small>kaingin / logging</small></span><input type="range" min="0" max="60" step="5" value="${v}" data-clear><b id="luVal">${v}%</b></div>`;
@@ -697,7 +919,7 @@ function renderMap() {
   const m = S.m, pct = S.volume / CAP, zs = S.svc.zones;
   gl.setWater(pct);
   gl.setSeason(S.scenario === 'dry' ? 'dry' : '');
-  gl.setRain(SCEN[S.scenario].rain);
+  gl.setRain(wxData() ? rainNowInfo().level : SCEN[S.scenario].rain);
   gl.setLabel('reservoir', S.spilling ? `FULL · spilling ${fmt(S.spillRate)} m³/h` : `${fmt(S.volume)} m³ · ${pctf(pct)} stored`, S.spilling || S.volume >= CRIT || S.volume < LOW ? 'crit' : S.volume >= 80000 || S.volume < S.rotThr ? 'warn' : '');
   gl.setLabel('forest', m.P < 1 ? 'No rain · baseflow only' : `Runoff ${fmt(m.runoff)} m³/h (est.) · ${pctf(m.Q / m.P)} of rain`);
   gl.setLandUse(S.lu.tau);
@@ -770,15 +992,17 @@ function renderStudyArea() {
 renderStudyArea();
 
 function renderWeather() {
-  const sc = SCEN[S.scenario];
-  $('#wxTemp').textContent = sc.temp + ' °C';
-  $('#wxDesc').textContent = sc.wx;
-  const drops = Array.from({ length: sc.rain * 2 }, (_, i) => `<path d="M${10 + i * 5} 25l-2 5" stroke="#6fb8ff" stroke-width="1.5" stroke-linecap="round"/>`).join('');
+  const sc = SCEN[S.scenario], live = wxData(), temp = live ? wxm.tempAt(S.wx, S.t) : null;
+  const now = live ? rainNowInfo() : null, rain = live ? now.level : sc.rain;
+  $('#wxTemp').textContent = (temp ?? sc.temp).toFixed(0) + ' °C';
+  $('#wxDesc').textContent = live ? `${now.word}${now.level ? ` · ${now.mm.toFixed(1)} mm/h` : ''}` : sc.wx;
+  $('.wx-sim').textContent = live ? 'Live forecast · Catbalogan' : 'Simulated';
+  const drops = Array.from({ length: rain * 2 }, (_, i) => `<path d="M${10 + i * 5} 25l-2 5" stroke="#6fb8ff" stroke-width="1.5" stroke-linecap="round"/>`).join('');
   const rays = Array.from({ length: 8 }, (_, i) => { const a = i * Math.PI / 4; return `<path d="M${20 + Math.cos(a) * 10} ${16 + Math.sin(a) * 10}L${20 + Math.cos(a) * 14} ${16 + Math.sin(a) * 14}" stroke="#f5c542" stroke-width="2" stroke-linecap="round"/>`; }).join('');
-  $('#wxIcon').innerHTML = sc.rain === 0
+  $('#wxIcon').innerHTML = rain === 0
     ? `<svg viewBox="0 0 40 32" width="40" height="32"><circle cx="20" cy="16" r="7" fill="#f5c542"/>${rays}</svg>`
     : `<svg viewBox="0 0 40 32" width="40" height="32"><path d="M10 21a6 6 0 0 1 1-12 8 8 0 0 1 15-1 7 7 0 0 1 2 13z" fill="#cfd8e3"/>${drops}</svg>`;
-  $('#wxTime').textContent = 'Sim time · ' + new Date(S.t).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ', ' + new Date(S.t).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+  $('#wxTime').textContent = (wxOn() ? 'Live · ' : 'Sim time · ') + new Date(S.t).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ', ' + new Date(S.t).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
 }
 
 // Phase 2B rows for the GIS panel (empty when no hydrology data is configured)
@@ -797,6 +1021,7 @@ function hydroRows() {
 
 // ---------- selection card ----------
 function infoHtml(id) {
+  if (String(id).startsWith('brgy:')) return brgyInfo(id);
   const row = (a, b) => `<div class="row"><span>${a}</span><span>${b}</span></div>`;
   const m = S.m, svc = S.svc;
   if (id === 'studyarea') {
@@ -887,6 +1112,8 @@ function renderInfo() {
 }
 function select(id) {
   if (!panelOpen['p-map']) togglePanel('p-map', true);               // selections are shown on the map
+  if (String(id).startsWith('brgy:')) { setMapMode('2d'); selected = id; gis.select(id.slice(5)); renderInfo(); return; }
+  if (mapMode === '2d') setMapMode('3d');
   selected = id;
   gl.selectLabel(id);
   gl.flyTo(id);
@@ -904,14 +1131,20 @@ function update() {
   renderPredictive();
   renderStatus();
   renderWeather();
+  renderWxNote();
   renderAreas();
   renderConsumption();
   renderInfo();
+  renderDockTabs();
 }
 
 setInterval(() => {
   const was = S.rotActive;
-  sim.step(S, speed / 3, rng);
+  if (wxOn()) {                                     // live: the clock follows real time
+    const dtH = (Date.now() - S.t) / 3.6e6;
+    if (dtH > 0) sim.step(S, dtH, rng);
+    refreshForecastQuietly();
+  } else sim.step(S, speed / 3, rng);
   update();
   if (was !== S.rotActive) toast(S.rotActive ? 'Water rationing activated: storage below threshold' : 'Storage recovered: rationing lifted');
 }, 2000);
@@ -1021,21 +1254,32 @@ $$('#viewbtns button').forEach(b => b.addEventListener('click', () => {
   gl.setView(b.dataset.view);
   $('#viewName').textContent = viewLine(b.dataset.view);
 }));
-$('#zin').onclick = () => gl.zoom(0.75);
-$('#zout').onclick = () => gl.zoom(1.33);
-$('#zreset').onclick = () => { selected = null; gl.selectLabel(null); renderInfo(); gl.reset(); };
+$('#zin').onclick = () => (mapMode === '2d' ? gis.zoom(0.8) : gl.zoom(0.75));
+$('#zout').onclick = () => (mapMode === '2d' ? gis.zoom(1.25) : gl.zoom(1.33));
+$('#zreset').onclick = () => { selected = null; gl.selectLabel(null); renderInfo(); if (mapMode === '2d') gis.reset(); else gl.reset(); };
 
-$$('#scen button').forEach(b => b.addEventListener('click', () => {
-  $$('#scen button').forEach(x => x.classList.toggle('active', x === b));
+$$('#scen button, #liveBtn').forEach(b => b.addEventListener('click', async () => {
+  if (b.dataset.s === 'forecast') {
+    if (b.disabled) return;
+    b.disabled = true; b.classList.add('loading');
+    toast('Loading the weather forecast for the reserve…');
+    try { await loadForecast(); sim.syncClock(S); }
+    catch (e) { toast(`Forecast unavailable (${e.message}). Staying on ${SCEN[S.scenario].label}.`); console.warn('[forecast]', e); return; }
+    finally { b.disabled = false; b.classList.remove('loading'); }
+  }
+  $$('#scen button, #liveBtn').forEach(x => x.classList.toggle('active', x === b));
+  if (b.dataset.s === 'forecast') S.wx = liveWx;
   sim.setScenario(S, b.dataset.s);
   dismissed.clear();
   update();
-  const sc = SCEN[S.scenario];
-  toast(`Scenario: ${sc.label} · peak rain ${sc.P} mm/d → estimated runoff ${fmt(peakRunoff(S.lu))} m³/h`);
+  const sc = SCEN[S.scenario], pk = sim.scenarioPeak(S);
+  if (wxLive()) toast(`Live outlook for Catbalogan · ${rainNowInfo().word.toLowerCase()} now · ${fmt(wxm.sumWindow(S.wx, 'p', S.t, S.t + 72 * 3.6e6).sum)} mm of rain in the next 3 days · clock runs in real time`);
+  else toast(`Scenario: ${sc.label} · peak rain ${pk.P} mm/d → estimated runoff ${fmt(peakRunoff(S.lu))} m³/h`);
   // demo hint only (no default or timing change): at 1× the overflow takes ~1.5 min of wall-clock time
   if (S.scenario === 'heavy' && speed === 1) setTimeout(() => { if (S.scenario === 'heavy' && speed === 1) toast('Tip: press 24× to see the reservoir overflow in a few seconds.'); }, 3000);
 }));
 $$('#speed button').forEach(b => b.addEventListener('click', () => {
+  if (wxOn()) { toast('Live outlook runs in real time. Choose a what-if scenario to speed up time.'); return; }
   $$('#speed button').forEach(x => x.classList.toggle('active', x === b));
   speed = +b.dataset.x;
   toast(`Simulation speed ${speed}× (${Math.round(speed * 20 / 60 * 10) / 10} simulated h per tick)`);
@@ -1079,7 +1323,7 @@ $('#bell').onclick = () => flash('p-alerts');
 
 for (const id of ['fchart', 'cchart']) {
   const el = $('#' + id);
-  const redraw = () => (id === 'fchart' ? forecastChart(el, S, fc, fcNo) : consumptionChart(el, S.cons.slice(-range)));
+  const redraw = () => (id === 'fchart' ? drawForecastChart() : consumptionChart(el, S.cons.slice(-range)));
   el.addEventListener('mousemove', e => {
     const r = el.getBoundingClientRect();
     el.__hx = (e.clientX - r.left) * (el.clientWidth / r.width);
@@ -1087,10 +1331,11 @@ for (const id of ['fchart', 'cchart']) {
   });
   el.addEventListener('mouseleave', () => { el.__hx = null; redraw(); });
 }
-new ResizeObserver(() => { forecastChart($('#fchart'), S, fc, fcNo); renderConsumption(); }).observe($('#fchart'));
+new ResizeObserver(() => { drawForecastChart(); renderConsumption(); }).observe($('#fchart'));
 new ResizeObserver(() => consumptionChart($('#cchart'), S.cons.slice(-range))).observe($('#cchart'));
 
 function flash(id) {
+  if (!isMobile && DOCK.includes(id)) setDock(id);                  // desktop: bottom panels live in the tabbed dock
   if (id in panelOpen && !panelOpen[id]) togglePanel(id, true);      // navigating to a collapsed panel opens it
   const p = document.getElementById(id);
   if (isMobile) p.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -1098,7 +1343,7 @@ function flash(id) {
 }
 function downloadReport() {
   const m = S.m, svc = S.svc, T = fc.totals(72), st = supplyStatus();
-  const lines = ['Watershed Command Center - Status Report (SIMULATION - not live data)', `Study area,${SA.name} (${SA.mode === 'gis' ? 'GIS study-area boundary; terrain and infrastructure simulated' : 'display name only'})`, `Watershed boundary,${SA.boundaryLabel}`, `GIS status,${SA.mode === 'gis' ? SA.gisStatus : 'PENDING DATA'}`, `Operational catchment km2,${SA.operational.km2.toFixed(3)} (${SA.operational.label})`, `Generated (sim time),${new Date(S.t).toISOString()}`, `Scenario,${SCEN[S.scenario].label}`, `Supply status,${st.label} (${st.reason})`, '',
+  const lines = ['Watershed Command Center - Status Report (SIMULATION - not live data)', `Study area,${SA.name} (${SA.mode === 'gis' ? 'GIS study-area boundary; terrain and infrastructure simulated' : 'display name only'})`, `Watershed boundary,${SA.boundaryLabel}`, `GIS status,${SA.mode === 'gis' ? SA.gisStatus : 'PENDING DATA'}`, `Operational catchment km2,${SA.operational.km2.toFixed(3)} (${SA.operational.label})`, `Generated (sim time),${new Date(S.t).toISOString()}`, `Scenario,${SCEN[S.scenario].label}${wxLive() ? ` (rain/ET0/temperature: Open-Meteo model forecast for ${S.wx.lat.toFixed(3)} ${S.wx.lon.toFixed(3)}; fetched ${new Date(S.wx.fetchedAt).toISOString()}; water system simulated)` : ''}`, `Supply status,${st.label} (${st.reason})`, '',
     'Q1 Do we have enough water?', `Stored (m3),${Math.round(S.volume)}`, `Usable above dead storage (m3),${Math.round(Math.max(0, S.volume - DEAD))}`, `Days of supply,${daysTxt(daysToLow(fcLong))}`, `Demand (m3/day),${Math.round(svc.demand)}`, `Deliverable supply (m3/day),${Math.round(svc.supply)}`, '',
     'Q2 What happens to the rainwater? (next 72 h)', `Rain on catchment (m3),${Math.round(T.rain)}`, `Runoff (m3 est.),${Math.round(T.runoff)}`, `Overflow not captured (m3),${Math.round(T.spill)}`, `Composite curve number,${m.cn.toFixed(1)}`, `Forest cleared (% of forest),${S.lu.forestLossPct.toFixed(0)}`, '',
     'Q3 Is water reaching where it is needed?', 'Area,Demand m3/day,Supply m3/day,Supply/Demand,Status,Primary pump,Backup pump',
@@ -1111,9 +1356,81 @@ function downloadReport() {
   a.click();
   toast('Report exported (watershed-report.csv)');
 }
+// ---------- 2D barangay map (REAL: PSA census + PSGC boundaries) in the map panel ----------
+const BRGY = SA.barangays;
+let mapMode = '3d', gis = null, gisMetric = 'pop2024', gisBase = 'street', brgyOverlap = new Set();
+const polysOf = gj => { try { return gj ? extractPolygons(gj).polys : []; } catch { return []; } };
+function initGis() {
+  if (gis || !BRGY?.units?.length) return;
+  const reserve = polysOf(SA.raw?.reserve), catchment = polysOf(SA.raw?.catchment);
+  brgyOverlap = new Set(reserve.length ? BRGY.units.filter(u => polygonsOverlap(u.polys, reserve)).map(u => u.code) : []);
+  const outlet = SA.raw?.outlet?.features?.[0]?.geometry?.coordinates;
+  const points = [...(outlet ? [{ lonlat: outlet, label: 'DEM outlet (candidate, unverified) near the Kulador plant', cls: 'outlet' }] : []),
+    ...(WX_POINT ? [{ lonlat: WX_POINT, label: 'Live forecast point', cls: 'wx' }] : [])];
+  gis = createGisMap($('#gis2d'), {
+    onSelect: u => { selected = u ? 'brgy:' + u.code : null; renderInfo(); },
+  });
+  gis.setData(BRGY, { reserve, catchment, points }, brgyOverlap);
+  gis.setBasemap(gisBase);
+  new ResizeObserver(() => gis.resize()).observe($('#gis2d'));
+  renderGisUi();
+}
+function renderGisUi() {
+  const lg = gis.setMetric(gisMetric), T = BRGY.totals, m = METRICS[gisMetric], B = BASEMAPS[gisBase];
+  $('#gisUi').innerHTML = `
+    <div class="gis-card gis-sum"><div class="olh"><span class="oltag real">REAL</span>${BRGY.label ?? ''} · ${T.count} barangays</div>
+      <div class="gis-kpis"><div><small>People (PSA 2024)</small><b>${fmt(T.pop2024)}</b></div><div><small>Households</small><b>${fmt(T.hh2024)}</b></div><div><small>Overlap the reserve</small><b>${brgyOverlap.size}</b></div></div></div>
+    <div class="gis-card gis-leg"><div class="gis-base" role="group" aria-label="Basemap">Basemap ${Object.entries(BASEMAPS).map(([k, v]) => `<button type="button" data-base="${k}" class="${k === gisBase ? 'active' : ''}">${v.label}</button>`).join('')}</div>
+      <label>Colour by <select id="gisMetric">${Object.entries(METRICS).map(([k, v]) => `<option value="${k}"${k === gisMetric ? ' selected' : ''}>${v.label}</option>`).join('')}</select></label>
+      <div class="gis-ramp">${lg.map(x => `<span><i style="background:${x.c}"></i>${x.t}</span>`).join('')}</div>
+      <div class="gis-keys"><span title="Catbalogan Watershed Forest Reserve, plotted from Proclamation No. 413 (position about ±100–200 m)"><i class="k-res"></i>Forest reserve (Proc. 413)</span><span title="Area that drains to the candidate intake point, traced from the elevation model; not validated"><i class="k-cat"></i>Drains to the intake (DEM, not validated)</span><span title="Barangays whose boundary overlaps the reserve (approximate)"><i class="k-ovl"></i>Barangay overlaps the reserve</span><span title="Red: candidate intake point near the Kulador plant (unverified). Green: live-forecast point."><i class="k-pt"></i>Intake (red) · forecast point (green)</span></div>
+      <small class="gis-src">Population: PSA census. Boundaries: PSGC 2023 (simplified, approximate). ${m.unit ? 'Unit: ' + m.unit + '.' : ''} The reserve also reaches into Jiabong (not shown).</small></div>
+    ${B.attr ? `<div class="gis-attr">${B.attr}</div>` : ''}`;
+}
+document.addEventListener('change', e => { if (e.target.matches('#gisMetric')) { gisMetric = e.target.value; renderGisUi(); } });
+document.addEventListener('click', e => { const b = e.target.closest('[data-base]'); if (b && gis) { gisBase = b.dataset.base; gis.setBasemap(gisBase); renderGisUi(); } });
+function setMapMode(m) {
+  if (m === '2d' && !BRGY?.units?.length) { toast('Barangay data is not loaded'); return; }
+  mapMode = m;
+  $('#p-map').classList.toggle('mode2d', m === '2d');
+  $('#gis2d').hidden = $('#gisUi').hidden = m !== '2d';
+  gl.setPaused(m === '2d');
+  $$('#mapMode button').forEach(b => { const on = b.dataset.mode === m; b.classList.toggle('active', on); b.setAttribute('aria-selected', String(on)); });
+  if (m === '2d') { initGis(); gis.resize(); }
+  if (selected && (m === '2d') !== String(selected).startsWith('brgy:')) { selected = null; gl.selectLabel(null); renderInfo(); }
+  if (m === '2d') {
+    $('#saName').textContent = `${(BRGY.label ?? '').toUpperCase()} · BARANGAYS`;
+    const st = $('#saStatus'); st.textContent = 'REAL · PSA 2024'; st.dataset.s = 'VERIFIED'; st.title = BRGY.meta?.statistics?.checks ?? '';
+    $('#viewName').textContent = 'Flat GIS map · boundaries PSGC 2023 (simplified) · population PSA census';
+  } else {
+    renderStudyArea();
+    $('#viewName').textContent = viewLine($('#viewbtns button.active')?.dataset.view ?? '3d');
+  }
+}
+$$('#mapMode button').forEach(b => b.addEventListener('click', () => setMapMode(b.dataset.mode)));
+function brgyInfo(id) {
+  const u = BRGY.units.find(x => 'brgy:' + x.code === id);
+  if (!u) return ['Barangay', '<small>Not found</small>'];
+  const row = (a, b) => `<div class="row"><span>${a}</span><span>${b}</span></div>`;
+  const chg = u.pop2024 != null && u.pop2020 != null ? u.pop2024 - u.pop2020 : null;
+  return [u.name,
+    row('Type', u.urban ?? '–'),
+    row('Population 2024', u.pop2024 != null ? fmt(u.pop2024) : '–'),
+    row('Population 2020', u.pop2020 != null ? fmt(u.pop2020) : '–'),
+    row('Change 2020–24', chg != null ? `${chg >= 0 ? '+' : ''}${fmt(chg)} (${u.growth >= 0 ? '+' : ''}${u.growth?.toFixed(2)}%/yr)` : '–'),
+    row('Households 2024', u.hh2024 != null ? fmt(u.hh2024) : '–'),
+    row('Household size', u.hhsize != null ? u.hhsize.toFixed(2) : '–'),
+    row('Area (approx.)', u.areaKm2 != null ? `${u.areaKm2.toFixed(2)} km²` : '–'),
+    row('Density (approx.)', u.density != null ? `${fmt(u.density)} per km²` : '–'),
+    row('Share of city population', u.pop2024 != null ? `${(u.pop2024 / BRGY.totals.pop2024 * 100).toFixed(1)}%` : '–'),
+    row('Overlaps the watershed reserve', brgyOverlap.has(u.code) ? 'Yes (approx.)' : 'No'),
+    `<small class="muted">REAL · PSA census 2015/2020/2024 · boundary PSGC 2023 (simplified) · PSGC ${u.code}. Water supply to this barangay is not yet linked (simulated service areas).</small>`];
+}
+
 const NAV = {
   dashboard: () => { selected = null; gl.selectLabel(null); renderInfo(); gl.reset(); },
-  map: () => { flash('p-map'); select('forest'); },
+  map: () => { setMapMode('3d'); flash('p-map'); select('forest'); },
+  barangays: () => { flash('p-map'); setMapMode('2d'); },
   water: () => { flash('p-status'); select('reservoir'); },
   reports: downloadReport,
   settings: () => toast('Settings are not part of this demo'),
@@ -1149,6 +1466,7 @@ const searchItems = [
   { n: 'Water Treatment Plant', id: 'wtp' }, { n: 'Isolation valve IV-A', id: 'IVA' }, { n: 'Isolation valve IV-B', id: 'IVB' }, { n: 'Cross-connection valve XV-1', id: 'XV1' }, { n: 'Cross-connection valve XV-2', id: 'XV2' },
   { n: 'Upper Watershed (catchment)', id: 'forest' }, { n: 'Commercial Zone', id: 'commercial' }, { n: 'River Intake', id: 'intake' },
   ...sim.AREAS.map(a => ({ n: a.name, id: a.ent })),
+  ...(SA.barangays?.units ?? []).map(u => ({ n: `${u.name} (barangay)`, id: 'brgy:' + u.code })),
 ];
 const sInp = $('#search'), sRes = $('#searchRes');
 let sMatches = [], sIdx = 0;
@@ -1174,3 +1492,8 @@ sInp.addEventListener('blur', () => setTimeout(() => (sRes.style.display = 'none
 addEventListener('keydown', e => { if (e.ctrlKey && e.key.toLowerCase() === 'k') { e.preventDefault(); sInp.focus(); } });
 
 update();
+$('#liveBtn').click();   // default mode: the live forecast (falls back to the Light what-if, with a toast, if the forecast can't load)
+// the grey startup skeleton (in index.html) stays until the forecast has loaded or failed, so the what-if view never flashes
+const hideBoot = () => { const b = $('#boot'); if (!b || b.classList.contains('done')) return; b.classList.add('done'); setTimeout(() => b.remove(), 400); };
+(wxLoading ?? Promise.resolve()).catch(() => {}).then(() => setTimeout(hideBoot, 300));
+setTimeout(hideBoot, 8000);

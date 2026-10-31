@@ -1,0 +1,20 @@
+{
+  "status": "real",
+  "boundaryType": "barangay",
+  "dataset": "Catbalogan City barangays (57) with PSA census population and households",
+  "boundaries": {
+    "source": "PSGC 2023 barangay boundaries via faeldon/philippines-json-maps (derived from PSA / NAMRIA)",
+    "sourceUrl": "https://github.com/faeldon/philippines-json-maps",
+    "license": "MIT",
+    "quality": "Simplified, approximate boundaries (about 15 vertices per barangay). For display and summary only, not for surveying.",
+    "originalCrs": "EPSG:4326"
+  },
+  "statistics": {
+    "source": "PSA Census of Population 2015, 2020 and 2024 (barangay level), as compiled by the team's Tuklas Catbalogan dashboard",
+    "sourceUrl": "https://tuklas-catbalogan.pages.dev/",
+    "fields": "pop2015, pop2020, pop2024, hh2024 (households), hhsize2024, area_km2_approx and density_approx (computed from the simplified polygons)",
+    "checks": "57 of 57 barangays joined on PSGC code; population 2024 sums to 107,896 (matches the City CBMS dashboard total); population 2020 sums to 106,440 (PSA 2020 census total for Catbalogan). Households 2024 sum to 25,235 (PSA census); the City CBMS dashboard reports 23,880 households (different survey)."
+  },
+  "retrieved": "2026-10-31",
+  "notes": "Administrative polygons. Never used as a watershed or catchment. The Catbalogan Watershed Forest Reserve also extends into Jiabong, whose barangays are not included."
+}

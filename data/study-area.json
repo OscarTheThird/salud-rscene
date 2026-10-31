@@ -28,8 +28,22 @@
       "demPreviewImage": "data/gis/dem/dem_preview.png",
       "slopePreviewImage": "data/gis/hydro/slope_preview.png"
     },
-    "administrative": { "municipality": null, "barangays": null },
+    "administrative": {
+      "label": "Catbalogan City",
+      "municipality": null,
+      "barangays": {
+        "boundaryFile": "data/gis/admin/catbalogan_barangays.geojson",
+        "statsFile": "data/gis/admin/catbalogan_barangays.csv",
+        "metadataFile": "data/gis/admin/metadata.json"
+      }
+    },
     "serviceAreas": null
+  },
+  "weather": {
+    "provider": "Open-Meteo (model forecast, not a rain gauge)",
+    "point": [124.9174, 11.8170],
+    "label": "Catbalogan Watershed Forest Reserve, Catbalogan City",
+    "note": "Point inside the reserve (Proclamation No. 413), upstream of the Kulador intake. Open-Meteo answers with its nearest grid cell (about 9-11 km), also in Catbalogan."
   },
   "sceneTransform": null,
   "_howToSupplyData": [

@@ -8,6 +8,7 @@
 // A data-driven (ML) correction is PLANNED, not implemented: forecasts are physics-only.
 
 import { landUse, UNITS, UNIT_ORDER, cnForAMC } from './landuse.js';
+import { covers, dailyRain, dailyEt0, antecedent5d, has5dHistory, amcClass, max24h } from './weather.js';
 import { operationalCatchmentKm2 } from './terrain.js';
 
 export const CAP = 100000;          // overflow threshold (m³)
@@ -86,7 +87,33 @@ export const SCEN = {
   light: { label: 'Light Rain', rain: 1, P: 12, amc: 'II', base: 365, pumpIn: 60, evap: 4.5, dmd: 1.0, storm: false, temp: 29, wx: 'Light Rain · Easterlies', unc: 1 },
   moderate: { label: 'Monsoon Rain (Amihan)', rain: 2, P: 80, amc: 'III', base: 520, pumpIn: 40, evap: 3, dmd: 0.97, storm: true, temp: 27, wx: 'Amihan Monsoon Rain', unc: 1.3 },
   heavy: { label: 'Typhoon', rain: 3, P: 220, amc: 'III', base: 650, pumpIn: 0, evap: 2, dmd: 0.9, storm: true, temp: 25, wx: 'Typhoon · TCWS No. 3', unc: 1.7 },
+  // real weather forecast (S.wx, from weather.js): rain, ET0 and antecedent moisture come from the forecast while the
+  // sim clock is inside it; the values below (= Light rain) apply outside the forecast window. Baseflow, demand and
+  // the water system stay simulated.
+  forecast: { label: 'Weather forecast', rain: 1, P: 12, amc: 'II', base: 365, pumpIn: 60, evap: 4.5, dmd: 1.0, storm: false, temp: 29, wx: 'Weather forecast', unc: 1, forecast: true },
 };
+
+// forecast scenario: is real weather data driving the model at time t?
+export const wxActive = (S, t) => !!SCEN[S.scenario].forecast && covers(S.wx, t);
+export function amcAt(S, t) {
+  return wxActive(S, t) && has5dHistory(S.wx, t) ? amcClass(antecedent5d(S.wx, t)) : SCEN[S.scenario].amc;
+}
+const evapAt = (S, t) => (wxActive(S, t) ? dailyEt0(S.wx, t) ?? SCEN[S.scenario].evap : SCEN[S.scenario].evap);
+// the scenario's peak daily rain and its moisture class (used for "peak runoff" readouts): the fixed scenario value,
+// or for the forecast the wettest centred 24 h total over the next 72 h
+export function scenarioPeak(S) {
+  const sc = SCEN[S.scenario];
+  if (!sc.forecast || !covers(S.wx, S.t)) return { P: sc.P, amc: sc.amc, t: null };
+  let best = { P: 0, amc: amcAt(S, S.t), t: S.t };
+  for (let h = 0; h <= 72; h++) {
+    const t = S.t + h * HOUR;
+    if (!covers(S.wx, t)) break;
+    const P = dailyRain(S.wx, t);
+    if (P > best.P) best = { P, amc: amcAt(S, t), t };
+  }
+  return best;
+}
+export { max24h };
 
 // PAGASA-style rainfall warning level from 24 h accumulation (heuristic for the demo)
 export function rainWarning(P) {
@@ -162,6 +189,7 @@ export function setForestClearing(S, frac) {
 }
 
 function rainfall(S, t) {
+  if (wxActive(S, t)) return dailyRain(S.wx, t) ?? 0;
   const sc = SCEN[S.scenario];
   const h = (t - S.scenarioT0) / HOUR;
   if (h < 0) return SCEN.light.P;
@@ -214,8 +242,8 @@ export const withdrawable = (v, freeIn, dtH = 1, dead = DEAD) => Math.max(0, fre
 
 // WTP level control: treat what the pumps want plus a refill toward TWS_SET, within treatment capacity and the raw
 // water available above raw dead storage. Treated storage therefore never overflows (tv' <= TWS_SET when pumps get all).
-export function treatment(v, tv, rawFreeIn, want, dtH = 1) {
-  const wanted = Math.min(WTP_CAP, Math.max(0, want + (TWS_SET - tv) / dtH));
+export function treatment(v, tv, rawFreeIn, want, dtH = 1, cap = WTP_CAP) {
+  const wanted = Math.min(cap, Math.max(0, want + (TWS_SET - tv) / dtH));
   const rawAvail = withdrawable(v, rawFreeIn, dtH);
   return { treat: Math.min(wanted, rawAvail), wanted, rawAvail, rawLimited: rawAvail < wanted };
 }
@@ -252,26 +280,27 @@ function allocate(S, d, rf, v, freeIn, dtH = 1) {
 
 export function model(S, t, v, rot, dtH = 1, tv = S.treated) {
   const sc = SCEN[S.scenario];
-  const P = rainfall(S, t);
-  const { Q, cnEff, Smax, Ia, units } = catchmentRunoff(P, sc.amc, S.lu);
+  const P = rainfall(S, t), amc = amcAt(S, t), wx = wxActive(S, t);
+  const { Q, cnEff, Smax, Ia, units } = catchmentRunoff(P, amc, S.lu);
   const runoff = Q * catchmentKm2() * 1000 / 24;
   // cleared forest infiltrates less, so groundwater recharge and baseflow drop
   const base = (BASEFLOW_REF + (sc.base - BASEFLOW_REF) * scenRamp(S, t)) * (1 - 0.6 * S.lu.clearedArea);
   const { hh, com, d } = zoneDemand(S, t);
   const rf = rot ? ROT_FACTOR : 1;
   const pumpIn = S.intakeOn ? sc.pumpIn : 0;
-  const evap = sc.evap / 1000 * SURFACE_M2 * Math.pow(Math.max(v, 0) / CAP, 2 / 3) / 24;
+  const evap = evapAt(S, t) / 1000 * SURFACE_M2 * Math.pow(Math.max(v, 0) / CAP, 2 / 3) / 24;
   const inflow = base + runoff;
   const freeIn = Math.max(0, inflow + pumpIn - evap);
   // raw reservoir -> WTP -> treated storage -> pumps: treatment follows pump demand, pumps are capped by treated water
   let tr = null;
-  const al = allocate(S, d, rf, tv, want => { tr = treatment(v, tv, freeIn, want, dtH); return withdrawable(tv, tr.treat, dtH, TWS_DEAD); }, dtH);
+  const wtpCap = WTP_CAP * (S.wtpFactor ?? 1);
+  const al = allocate(S, d, rf, tv, want => { tr = treatment(v, tv, freeIn, want, dtH, wtpCap); return withdrawable(tv, tr.treat, dtH, TWS_DEAD); }, dtH);
   const demand = hh + com, target = demand * rf;
   const net = inflow + pumpIn - tr.treat - evap;              // raw-reservoir balance (treatment is its only withdrawal)
   const netT = tr.treat - al.pumpOut;                          // treated-storage balance
   return {
-    P, cn: cnEff, amc: sc.amc, units, Smax, Ia, Q, runoff, base, inflow, pumpIn, hh, com, demand, target,
-    treat: tr.treat, treatLimited: tr.rawLimited, netT,
+    P, cn: cnEff, amc, wx, units, Smax, Ia, Q, runoff, base, inflow, pumpIn, hh, com, demand, target,
+    treat: tr.treat, treatLimited: tr.rawLimited, netT, wtpCap,
     pumpOut: al.pumpOut, unserved: Math.max(0, target - al.pumpOut), rationed: demand - target, evap, net, rot,
     d, del: al.del, nw: al.nw, loads: al.loads, storageLimited: al.storageLimited,
   };
@@ -298,7 +327,7 @@ export function integrateTreated(tv, m, dtH, rawCurtail = 0) {
 
 // water the system can release per hour: what flows in, plus usable raw storage spread over the supply horizon,
 // limited by treatment capacity (only treated water is distributed)
-export const releaseRate = (v, m) => Math.min(WTP_CAP, Math.max(0, m.inflow + m.pumpIn - m.evap) + Math.max(0, v - DEAD) / SUPPLY_HORIZON_H);
+export const releaseRate = (v, m) => Math.min(m.wtpCap ?? WTP_CAP, Math.max(0, m.inflow + m.pumpIn - m.evap) + Math.max(0, v - DEAD) / SUPPLY_HORIZON_H);
 
 // policy=false: no pump rotation (counterfactual)
 export function forecast(S, hours = 168, { policy = true } = {}) {
@@ -334,7 +363,7 @@ export function serviceAreas(S) {
   const { d, com } = zoneDemand(S, S.t, false);
   const freeIn = Math.max(0, m.inflow + m.pumpIn - m.evap);
   // same chain as the model: pumps draw treated water; treatment follows demand within raw availability
-  const fromTreated = want => withdrawable(S.treated, treatment(S.volume, S.treated, freeIn, want).treat, 1, TWS_DEAD);
+  const fromTreated = want => withdrawable(S.treated, treatment(S.volume, S.treated, freeIn, want, 1, m.wtpCap ?? WTP_CAP).treat, 1, TWS_DEAD);
   const al = allocate(S, d, rf, S.treated, fromTreated);
   const peak = allocate(S, zoneDemand(S, S.t, false, PEAK).d, rf, S.treated, fromTreated);
   const R = releaseRate(S.volume, m), D = d.A + d.B + d.C;
@@ -459,6 +488,15 @@ export function refresh(S) {
 }
 
 export function setRotation(S, mode) { S.rotMode = mode; refresh(S); }
+// live mode: move the simulation clock to real time. Simulated history is relabelled (shifted), not re-simulated.
+export function syncClock(S, t = Date.now()) {
+  const d = t - S.t;
+  if (!d) return;
+  S.t = t; S.scenarioT0 += d;
+  S.hist.forEach(p => { p.t += d; });
+  S.cons.forEach(c => { c.t += d; });
+  refresh(S);
+}
 export function setScenario(S, key) { S.scenario = key; S.scenarioT0 = S.t; refresh(S); }
 
 export function pumpStart(S, id) {

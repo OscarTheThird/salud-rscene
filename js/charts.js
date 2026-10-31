@@ -17,7 +17,7 @@ export function lineSample(t, w = 26) {
   return `<svg width="${w}" height="8" style="vertical-align:middle"><line x1="1" x2="${w - 1}" y1="4" y2="4" stroke="${t.color}" stroke-width="${t.width + 0.4}" stroke-dasharray="${t.dash}"/></svg>`;
 }
 
-export function forecastChart(el, S, fc, fcNoRot) {
+export function forecastChart(el, S, fc, fcNoRot, rain = null) {
   const w = el.clientWidth, h = el.clientHeight;
   if (w < 50 || h < 40) return;
   const m = { l: 36, r: 8, t: 6, b: 18 };
@@ -50,11 +50,17 @@ export function forecastChart(el, S, fc, fcNoRot) {
   s += `<path d="${pathOf(fc.map(p => [X(p.t), Y(p.v)]))}" fill="none" stroke="#2ee6a0" stroke-width="2" stroke-dasharray="6 4"/>`;
   const hist = S.hist.filter(p => p.t >= t0);
   s += `<path d="${pathOf(hist.map(p => [X(p.t), Y(p.v)]))}" fill="none" stroke="#2f8cff" stroke-width="2.2"/>`;
+  // live forecast: hourly rain bars hanging from the top of the plot (own scale, top ~30% of the height)
+  if (rain && rain.length) {
+    const rmax = Math.max(4, Math.ceil(Math.max(...rain.map(r => r.mm)))), rh = (h - m.t - m.b) * 0.3, bw = Math.max(1, X(t0 + 3.6e6) - X(t0) - 0.4);
+    rain.forEach(r => { if (r.mm > 0) s += `<rect x="${X(r.t) - bw}" y="${m.t}" width="${bw}" height="${Math.max(0.6, r.mm / rmax * rh)}" fill="#5fb4ff" fill-opacity="${r.t <= S.t ? 0.45 : 0.85}"/>`; });
+    s += `<text x="${m.l + 4}" y="${m.t + rh + 10}" class="ax" fill="#8fd0ff">Rain, mm/h (live forecast) · max scale ${rmax}</text>`;
+  }
   const nx = X(S.t);
   s += `<line x1="${nx}" x2="${nx}" y1="${m.t}" y2="${h - m.b}" stroke="#cfe3ff" stroke-opacity=".5"/><text x="${nx + 4}" y="${Y(105000) + 3}" class="ax" fill="#cfe3ff">Now</text>`;
   s += `<circle cx="${nx}" cy="${Y(S.volume)}" r="4.5" fill="#2f8cff" stroke="#fff" stroke-width="1.5"/>`;
-  if (w >= 440) s += `<g class="ax" transform="translate(${m.l + 6},${Y(6500) + 3})"><line x2="14" stroke="#2f8cff" stroke-width="2"/><text x="18" y="3">Simulated history</text><line x1="92" x2="106" stroke="#2ee6a0" stroke-width="2" stroke-dasharray="4 3"/><text x="110" y="3">Forecast</text><rect x="158" y="-4" width="12" height="8" fill="#2ee6a0" fill-opacity=".3"/><text x="174" y="3">Uncertainty (heuristic)</text>${fcNoRot ? '<line x1="290" x2="304" stroke="#ff7b84" stroke-dasharray="2 3" stroke-width="1.6"/><text x="308" y="3">No rotation</text>' : ''}</g>`;
-  else s += `<g class="ax" transform="translate(${m.l + 6},${Y(6500) - 13})"><line x2="14" stroke="#2f8cff" stroke-width="2"/><text x="18" y="4">Simulated history</text><line x1="128" x2="142" stroke="#2ee6a0" stroke-width="2" stroke-dasharray="4 3"/><text x="146" y="4">Forecast</text></g>
+  if (w >= 440) s += `<g class="ax" transform="translate(${m.l + 6},${Y(6500) + 3})"><line x2="14" stroke="#2f8cff" stroke-width="2"/><text x="18" y="3">Simulated history</text><line x1="92" x2="106" stroke="#2ee6a0" stroke-width="2" stroke-dasharray="4 3"/><text x="110" y="3">Projected storage</text><rect x="210" y="-4" width="12" height="8" fill="#2ee6a0" fill-opacity=".3"/><text x="226" y="3">Uncertainty (heuristic)</text>${fcNoRot ? '<line x1="342" x2="356" stroke="#ff7b84" stroke-dasharray="2 3" stroke-width="1.6"/><text x="360" y="3">No rotation</text>' : ''}</g>`;
+  else s += `<g class="ax" transform="translate(${m.l + 6},${Y(6500) - 13})"><line x2="14" stroke="#2f8cff" stroke-width="2"/><text x="18" y="4">Simulated history</text><line x1="128" x2="142" stroke="#2ee6a0" stroke-width="2" stroke-dasharray="4 3"/><text x="146" y="4">Projected storage</text></g>
     <g class="ax" transform="translate(${m.l + 6},${Y(6500) + 3})"><rect x="0" y="-4" width="12" height="8" fill="#2ee6a0" fill-opacity=".3"/><text x="16" y="4">Uncertainty (heuristic)</text>${fcNoRot ? '<line x1="160" x2="174" stroke="#ff7b84" stroke-dasharray="2 3" stroke-width="1.6"/><text x="178" y="4">No rotation</text>' : ''}</g>`;
   let tip = '';
   if (el.__hx != null) {
@@ -69,7 +75,7 @@ export function forecastChart(el, S, fc, fcNoRot) {
       const nr = isF && fcNoRot ? fcNoRot[best.h] : null;
       const mm = best.m;
       const detail = isF && mm ? `<br>Rain ${mm.P.toFixed(0)} mm/d · Runoff ${fmt(mm.runoff)} m³/h<br>Net balance ${mm.net >= 0 ? '+' : ''}${fmt(mm.net)} m³/h${best.spill > 0 ? `<br><span style="color:#5fd0ff">Overflow ${fmt(best.spill)} m³/h (not captured)</span>` : ''}${best.rot ? '<br><span style="color:#c9adff">Pump rotation active</span>' : ''}${nr && Math.abs(nr.v - best.v) > 300 ? `<br><span style="color:#ff9aa1">Without rotation: ${fmt(nr.v)} m³</span>` : ''}` : '';
-      tip = `<div class="ctip" style="left:${Math.min(Math.max(x - 70, 0), w - 190)}px;top:2px"><b>${fmt(best.v)} m³</b> · ${(best.v / CAP * 100).toFixed(1)}%<br>${isF ? `Forecast (est.) ±${fmt((best.hi - best.lo) / 2)}` : 'Simulated history'} · ${dShort(best.t)} ${tShort(best.t)}${detail}</div>`;
+      tip = `<div class="ctip" style="left:${Math.min(Math.max(x - 70, 0), w - 190)}px;top:2px"><b>${fmt(best.v)} m³</b> · ${(best.v / CAP * 100).toFixed(1)}%<br>${isF ? `Projected storage (est.) ±${fmt((best.hi - best.lo) / 2)}` : 'Simulated history'} · ${dShort(best.t)} ${tShort(best.t)}${detail}</div>`;
     }
   }
   el.innerHTML = s + '</svg>' + tip;

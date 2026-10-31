@@ -44,6 +44,7 @@
     <nav id="nav">
       <a data-nav="dashboard" class="active" tabindex="0" role="button" title="Overview" aria-label="Overview"><svg><use href="#i-grid"/></svg><span class="nl">Overview</span></a>
       <a data-nav="map" tabindex="0" role="button" title="Watershed &amp; Rainfall" aria-label="Watershed &amp; Rainfall"><svg><use href="#i-pin"/></svg><span class="nl">Watershed &amp; Rainfall</span></a>
+      <a data-nav="barangays" tabindex="0" role="button" title="Barangays (GIS map)" aria-label="Barangays (GIS map)"><svg><use href="#i-map2"/></svg><span class="nl">Barangays (GIS)</span></a>
       <a data-nav="water" tabindex="0" role="button" title="Water Availability" aria-label="Water Availability"><svg><use href="#i-drop"/></svg><span class="nl">Water Availability</span></a>
       <a data-nav="reports" tabindex="0" role="button" title="Reports" aria-label="Reports"><svg><use href="#i-file"/></svg><span class="nl">Reports</span></a>
       <a data-nav="settings" tabindex="0" role="button" title="Settings" aria-label="Settings"><svg><use href="#i-gear"/></svg><span class="nl">Settings</span></a>
@@ -69,6 +70,19 @@
       <div class="mbrand"><img src="assets/SALUD-LOGO-sm.png" alt="SALUD" class="brand-logo" width="97" height="28"></div>
       <div class="sys sim" title="Scenario simulation. Real GIS data: study-area boundary and DEM layers only. Everything else is simulated."><span class="pulse"></span>SIMULATION MODE</div>
     </header>
+    <div class="boot" id="boot" aria-hidden="true">
+      <div class="boot-top"><i class="sk" style="width:26%"></i><i class="sk" style="width:26%"></i><i class="sk" style="width:26%"></i><i class="sk bs" style="margin-left:auto;width:300px"></i><i class="sk bc"></i></div>
+      <div class="boot-body">
+        <div class="boot-main">
+          <div class="skp boot-map"><i class="sk" style="width:210px;height:44px"></i><i class="sk" style="width:60%;height:12px;margin-top:10px"></i><div class="boot-btns"><i class="sk"></i><i class="sk"></i><i class="sk"></i><i class="sk"></i></div></div>
+          <div class="boot-side">
+            <div class="skp boot-out"><i class="sk" style="width:55%;height:14px"></i><div class="boot-tiles"><i class="sk"></i><i class="sk"></i><i class="sk"></i><i class="sk"></i><i class="sk"></i></div><i class="sk" style="height:56px"></i><i class="sk" style="flex:1"></i></div>
+            <div class="skp boot-sup"><i class="sk" style="width:45%;height:14px"></i><i class="sk" style="flex:1"></i></div>
+          </div>
+        </div>
+        <div class="boot-bottom"><div class="skp"><i class="sk" style="width:50%;height:14px"></i><i class="sk" style="flex:1"></i></div><div class="skp"><i class="sk" style="width:50%;height:14px"></i><i class="sk" style="flex:1"></i></div><div class="skp"><i class="sk" style="width:50%;height:14px"></i><i class="sk" style="flex:1"></i></div><div class="skp"><i class="sk" style="width:50%;height:14px"></i><i class="sk" style="flex:1"></i></div></div>
+      </div>
+    </div>
     <header class="topbar">
       <div class="questions" id="questions">
         <div class="q" data-q="1" title="Storage, forecast and days of supply"><small>1 · DO WE HAVE ENOUGH WATER?</small><b><i></i><span id="q1">…</span></b></div>
@@ -78,7 +92,6 @@
       <div class="search">
         <svg><use href="#i-search"/></svg>
         <input id="search" placeholder="Search area, pump, valve…" autocomplete="off">
-        <kbd>Ctrl K</kbd>
         <div id="searchRes" class="sres"></div>
       </div>
       <button class="bell" id="bell" title="Decision alerts"><svg><use href="#i-bell"/></svg><i id="bellDot"></i></button>
@@ -90,6 +103,9 @@
         <section class="panel map" id="p-map">
           <div class="map-title" data-sel="studyarea"><span class="mt-ico"><svg><use href="#i-layers"/></svg></span><div><b id="saName">STUDY AREA</b> <em class="sa-status" id="saStatus"></em><small id="viewName">Schematic digital twin · simulated terrain</small></div></div>
           <div id="gl"></div>
+          <div class="gis2d" id="gis2d" hidden></div>
+          <div class="gisui" id="gisUi" hidden></div>
+          <div class="mapmode" id="mapMode" role="tablist" aria-label="Map view"><button type="button" role="tab" data-mode="3d" class="active" aria-selected="true">3D Watershed</button><button type="button" role="tab" data-mode="2d" aria-selected="false">2D Barangays</button></div>
           <div class="mhint" id="mHint" aria-hidden="true">Use two fingers to move the map</div>
           <div id="labels"></div>
           <div class="flowchain" id="flowchain"></div>
@@ -141,29 +157,25 @@
 
         <div class="right">
           <section class="panel" id="p-predictive">
-            <div class="ph"><svg class="cy"><use href="#i-trend"/></svg><h3 title="Physics-based scenario simulation (SCS-CN runoff + water balance). Not a statistical or data-driven forecast.">SCENARIO WATER AVAILABILITY<small class="ph-sub">· physics-based</small></h3>
-              <div class="seg" id="scen" title="Scenario simulation: changes rainfall, soil moisture, runoff, demand and the forecast"><small>Scenario</small>
+            <div class="ph"><svg class="cy"><use href="#i-trend"/></svg><h3 id="predTitle" title="Physics-based simulation (SCS-CN runoff + water balance). Not a statistical or data-driven forecast.">SCENARIO WATER AVAILABILITY<small class="ph-sub" id="predSub">· physics-based what-if</small></h3>
+              <button class="chip" id="modelBtn" title="How the estimate is calculated"><svg><use href="#i-brain"/></svg>How it works</button></div>
+            <div class="scenbar">
+              <button type="button" class="livebtn" id="liveBtn" data-s="forecast" title="Real weather forecast for the reserve, fetched now from Open-Meteo (model forecast, not a rain gauge). The water system stays simulated."><span class="ldot" aria-hidden="true"></span>Live forecast</button>
+              <div class="seg" id="scen" title="What-if scenarios: fixed rainfall and soil moisture chosen by you, to test the system"><small>What-if</small>
                 <button data-s="dry">Dry</button><button data-s="light" class="active">Light</button><button data-s="moderate">Monsoon</button><button data-s="heavy">Typhoon</button>
               </div>
-              <button class="chip" id="modelBtn" title="How the estimate is calculated"><svg><use href="#i-brain"/></svg>How it works</button></div>
+            </div>
             <div class="dtlbar"><button type="button" class="dtl-toggle" id="detailsBtn" aria-expanded="false" aria-controls="chain inputs" title="Show the 5-step chain and model inputs"><svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Details</span><small>5-step chain · model inputs</small></button></div>
+            <div class="outlook" id="outlook" aria-live="polite"></div>
+            <div class="wxnote" id="wxNote" hidden></div>
             <div class="chain" id="chain"></div>
+            <div class="chainpop" id="chainPop" role="tooltip" hidden></div>
             <div class="chart" id="fchart"></div>
             <div class="inputs" id="inputs"></div>
             <div class="kpis" id="fkpis"></div>
             <div class="luquick" id="luQuick" title="What-if: share of upland forest cleared (kaingin / logging). Classified land cover, simulated: changes the curve numbers and baseflow used by the scenario model."></div>
             <div class="banner" id="banner"></div>
             <div class="modelcard" id="modelcard" hidden></div>
-          </section>
-          <section class="panel" id="p-status">
-            <div class="ph"><svg class="cy"><use href="#i-drop"/></svg><h3>WATER AVAILABILITY</h3><small class="ph-q">How much usable water do we have?</small><span class="supstate" id="supState"></span></div>
-            <div class="status-body">
-              <div class="donutwrap"><div id="donut"></div><div class="dc"><b id="dPct">68.4%</b><small>STORED</small></div></div>
-              <div class="status-right">
-                <div class="avail" id="avail"></div>
-                <div class="thrstrip" id="thrstrip"></div>
-              </div>
-            </div>
           </section>
         </div>
       </div>
@@ -191,6 +203,16 @@
           <div class="ph"><svg class="cy"><use href="#i-bell"/></svg><h3>DECISION SUPPORT<span class="ph-sub">Recommended actions · rule-based advisory</span></h3><a class="va" id="alertsAll">Show dismissed</a></div>
           <div class="ds-status"><span class="ds-chip normal" id="dsChip">OK</span><b id="dsHead">All service areas supplied; continue routine monitoring</b></div>
           <div id="alerts"></div>
+        </section>
+        <section class="panel" id="p-status">
+          <div class="ph"><svg class="cy"><use href="#i-drop"/></svg><h3>WATER AVAILABILITY</h3><small class="ph-q">How much usable water do we have?</small><span class="supstate" id="supState"></span></div>
+          <div class="status-body">
+            <div class="donutwrap"><div id="donut"></div><div class="dc"><b id="dPct">68.4%</b><small>STORED</small></div></div>
+            <div class="status-right">
+              <div class="avail" id="avail"></div>
+              <div class="thrstrip" id="thrstrip"></div>
+            </div>
+          </div>
         </section>
       </div>
     </div>

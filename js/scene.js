@@ -646,7 +646,7 @@ export function createScene(container, labelHost, handlers) {
   addEventListener('resize', resize);
   resize();
 
-  renderer.setAnimationLoop(() => {
+  const loop = () => {
     const dt = Math.min(clock.getDelta(), 0.05);
     const time = clock.elapsedTime;
     if (tween) {
@@ -749,9 +749,12 @@ export function createScene(container, labelHost, handlers) {
       l.el.style.setProperty('--stem', `${10 + y0 - y}px`);
       l.el.style.transform = `translate(${x.toFixed(1)}px,${y.toFixed(1)}px) translate(-50%,-100%)`;
     }
-  });
+  };
+  renderer.setAnimationLoop(loop);
 
   return {
+    // stop rendering while another view (e.g. a 2D map) covers the canvas; resumes without a time jump
+    setPaused(on) { renderer.setAnimationLoop(on ? null : loop); if (!on) clock.getDelta(); },
     setLayer(name, on) { layerOn[name] = on; layers[name].visible = on; },
     setView(v) {
       view = v;
