@@ -27,7 +27,7 @@ f.addEventListener('submit', async e => {
     if (!r.ok) { fail(r.status === 429 ? 'Too many attempts. Wait a minute and try again.' : 'Incorrect email or password.'); return; }
     const { access_token } = await r.json();
     const s = await fetch('/api/session', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ access_token }), credentials: 'same-origin' });
-    if (!s.ok) { fail(s.status === 500 ? 'The site is not fully set up yet. Tell the project owner.' : 'Could not start your session. Try again.'); return; }
+    if (!s.ok) { fail(s.status === 500 ? 'The site is not fully set up yet. Tell the project owner.' : s.status === 403 ? 'This account has not been invited to the preview.' : 'Could not start your session. Try again.'); return; }
     location.replace('/');
   } catch {
     fail('Network problem. Check your connection and try again.');
