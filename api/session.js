@@ -1,12 +1,12 @@
 // Vercel Function: turns a Supabase sign-in into the site's session cookie, with a role.
 //   POST { access_token }  checks the token with Supabase, then sets the signed HttpOnly cookie
-//   GET                    { signedIn, role } (the app uses it to show "Sign out" and the admin menu)
+//   GET                    { signedIn, role } (the app uses it to show "Sign out" and to notice an ended session)
 //   GET ?logout            clears the cookie and goes back to the login page
-// Roles: admin (email in ADMIN_EMAILS), viewer (email in ALLOWED_EMAILS), guest (made by /api/token-login).
+// Roles: admin (email in ADMIN_EMAILS), viewer (email in ALLOWED_EMAILS), guest (an approved request, made by /api/access).
 // Needs SESSION_SECRET (32+ random characters) and ADMIN_EMAILS and/or ALLOWED_EMAILS (comma-separated).
 // The Supabase URL and publishable key are public.
 import { COOKIE, TTL_S, sign, verify, parseCookie, cookieHeader } from '../_lib/session.js';
-import { emails, sameOrigin } from '../_lib/tokens.js';
+import { emails, sameOrigin } from '../_lib/util.js';
 
 const SB = process.env.SUPABASE_URL || 'https://anrugoxkeprcsthheajq.supabase.co';
 const KEY = process.env.SUPABASE_PUBLISHABLE_KEY || 'sb_publishable_6Ming0-Ros-pf9WNla1IMw_RoddUJ-Y';

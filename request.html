@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Your request · SALUD</title>
+<style>
+  :root{--bg:#06101d;--card:#0b1d35;--line:#1b3a5e;--txt:#e6f0fb;--mut:#8fb2d6;--acc:#2ee6d6}
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{margin:0;background:radial-gradient(1200px 600px at 50% -10%,#10305a 0%,var(--bg) 60%);color:var(--txt);font:14px/1.45 "Segoe UI",Inter,system-ui,sans-serif;display:grid;place-items:center;padding:16px}
+  .card{width:min(400px,100%);background:linear-gradient(180deg,var(--card),#08172a);border:1px solid var(--line);border-radius:14px;padding:28px 26px 24px;text-align:center;box-shadow:0 20px 60px #000a}
+  .logo{display:block;background:#fff;border-radius:10px;padding:8px 14px;width:max-content;margin:0 auto 18px}
+  .logo img{display:block;height:34px;width:auto}
+  h1{margin:0 0 8px;font-size:19px}
+  p{margin:0;color:var(--mut)}
+  .spin{width:30px;height:30px;margin:18px auto 0;border:3px solid #1b3a5e;border-top-color:var(--acc);border-radius:50%;animation:s 1s linear infinite}
+  @keyframes s{to{transform:rotate(360deg)}}
+  @media (prefers-reduced-motion:reduce){.spin{animation:none}}
+  a.back{display:inline-block;margin-top:18px;padding:10px 18px;border:1px solid var(--line);border-radius:8px;color:var(--txt);text-decoration:none;font-weight:600;font-size:13px}
+  a.back:hover{background:#12304f}
+  [hidden]{display:none!important}
+</style>
+</head>
+<body>
+<main class="card">
+  <span class="logo"><img src="/assets/SALUD-LOGO-sm.png" alt="SALUD" width="97" height="34"></span>
+  <h1 id="t">Confirming your email…</h1>
+  <p id="m">One moment.</p>
+  <div class="spin" id="spin" aria-hidden="true"></div>
+  <a class="back" id="back" href="/login.html" hidden>Back to sign in</a>
+</main>
+<script src="/request.js"></script>
+</body>
+</html>

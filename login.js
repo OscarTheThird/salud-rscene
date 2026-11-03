@@ -13,29 +13,31 @@ $('show').addEventListener('click', () => {
   $('show').setAttribute('aria-pressed', String(on));
 });
 
-// ---- temporary sign in with a 6-digit token (made by the admin) ----
-const tf = $('tf'), tok = $('tok'), tgo = $('tgo'), terr = $('terr');
-function showToken(on) {
-  tf.hidden = !on; f.hidden = on; $('orRow').hidden = on; $('toToken').hidden = on;
-  (on ? tok : $('email')).focus();
+// ---- request access: name + email, then a confirmation link by email; the admin approves; the waiting page signs them in ----
+const rf = $('rf'), rgo = $('rgo'), rerr = $('rerr');
+function show(view) {                                       // 'signin' | 'request' | 'done'
+  f.hidden = view !== 'signin'; $('orRow').hidden = view !== 'signin'; $('toRequest').hidden = view !== 'signin';
+  rf.hidden = view !== 'request'; $('rdone').hidden = view !== 'done';
+  ({ signin: $('email'), request: $('rname'), done: null }[view])?.focus();
 }
-$('toToken').addEventListener('click', () => showToken(true));
-$('toEmail').addEventListener('click', () => showToken(false));
-tok.addEventListener('input', () => {                       // digits only, shown as "123 456"
-  const d = tok.value.replace(/\D/g, '').slice(0, 6);
-  tok.value = d.length > 3 ? `${d.slice(0, 3)} ${d.slice(3)}` : d;
-  terr.textContent = '';
-});
-tf.addEventListener('submit', async e => {
+$('toRequest').addEventListener('click', () => show('request'));
+$('toEmail').addEventListener('click', () => show('signin'));
+$('doneBack').addEventListener('click', () => show('signin'));
+rf.addEventListener('submit', async e => {
   e.preventDefault();
-  const code = tok.value.replace(/\D/g, '');
-  if (code.length !== 6) { terr.textContent = 'Enter all 6 digits.'; return; }
-  tgo.disabled = true; tgo.textContent = 'Checking…'; terr.textContent = '';
-  const stop = msg => { terr.textContent = msg; tgo.disabled = false; tgo.textContent = 'Continue with token'; };
+  const name = $('rname').value.trim(), email = $('remail').value.trim(), org = $('rorg').value.trim();
+  const stop = msg => { rerr.textContent = msg; rgo.disabled = false; rgo.textContent = 'Send request'; };
+  if (name.length < 2) { stop('Enter your name.'); return; }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) { stop('Enter a valid email address.'); return; }
+  rgo.disabled = true; rgo.textContent = 'Sending…'; rerr.textContent = '';
   try {
-    const r = await fetch('/api/token-login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code }), credentials: 'same-origin' });
-    if (r.ok) { location.replace('/'); return; }
-    stop(r.status === 429 ? 'Too many attempts. Wait a few minutes and try again.' : r.status === 401 ? 'That token is invalid or has expired.' : r.status === 500 ? 'Token sign-in is not set up yet. Tell the project owner.' : 'Could not sign in with that token. Try again.');
+    const r = await fetch('/api/access', { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin',
+      body: JSON.stringify({ action: 'request', name, email, org, website: $('rweb').value }) });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) { stop(j.error || 'Could not send your request. Try again.'); return; }
+    $('rsent').textContent = email;
+    rgo.disabled = false; rgo.textContent = 'Send request';
+    show('done');
   } catch {
     stop('Network problem. Check your connection and try again.');
   }

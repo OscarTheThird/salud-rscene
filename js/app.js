@@ -1463,7 +1463,6 @@ const NAV = {
 };
 $$('#nav a').forEach(a => a.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); a.click(); } }));
 $$('#nav a').forEach(a => a.addEventListener('click', () => {
-  if (a.dataset.nav === 'token') { if (myRole === 'admin') openTokenModal(); return; }     // a dialog, not a page: keep the current item highlighted
   $$('#nav a').forEach(x => x.classList.toggle('active', x === a));
   NAV[a.dataset.nav]?.();
 }));
@@ -1521,74 +1520,13 @@ addEventListener('keydown', e => { if (e.ctrlKey && e.key.toLowerCase() === 'k')
 update();
 $('#liveBtn').click();   // default mode: the live forecast (falls back to the Light what-if, with a toast, if the forecast can't load)
 // "Sign out" appears only where the login gate exists (the hosted site); locally and on a plain static host the endpoint is absent
-let myRole = null;
 fetch('/api/session', { cache: 'no-store' }).then(r => (r.ok ? r.json() : null)).then(j => {
   if (!j?.signedIn) return;
-  myRole = j.role;
   $('#signout').hidden = false;
   $('.av').title = `Signed in · ${j.role}`;
-  $('#navToken').hidden = j.role !== 'admin';          // role-based: only admins see "Generate token"
+  // a time-limited session ends quietly: when the cookie runs out, go back to the sign-in page
+  setInterval(() => fetch('/api/session', { cache: 'no-store' }).then(r => (r.ok ? r.json() : null)).then(s => { if (s && !s.signedIn) location.replace('/login.html'); }).catch(() => {}), 30000);
 }).catch(() => {});
-
-// ---------- admin: temporary 6-digit access tokens (the server checks the admin role again on every call) ----------
-const tok = { items: [], poll: 0, tick: 0 };           // items: [{ id, code, expiresAt, state }] made in this browser session
-const tokEsc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-const tokFmt = c => `${c.slice(0, 3)} ${c.slice(3)}`;
-async function tokApi(method) {
-  const r = await fetch('/api/tokens', { method, cache: 'no-store' });
-  const j = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error(j.error || `HTTP ${r.status}`);
-  return j;
-}
-function tokRender() {
-  const now = Date.now(), last = tok.items[0];
-  $('#tokBig').innerHTML = last ? tokFmt(last.code) : '<span class="tokph">No token yet</span>';
-  $('#tokCopy').disabled = !last;
-  const left = t => { const s = Math.max(0, Math.round((Date.parse(t) - now) / 1000)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
-  $('#tokList').innerHTML = tok.items.map(t => {
-    const gone = t.state !== 'used' && Date.parse(t.expiresAt) <= now, st = t.state === 'used' ? 'used' : gone ? 'gone' : 'unused';
-    return `<div class="tokitem"><b>${tokEsc(tokFmt(t.code))}</b><span>${st === 'unused' ? `expires in ${left(t.expiresAt)}` : st === 'used' ? 'signed in' : 'expired or revoked'}</span><em class="${st}">${st === 'used' ? 'Used' : st === 'unused' ? 'Unused' : 'Ended'}</em></div>`;
-  }).join('');
-  const open = tok.items.filter(t => t.state !== 'used' && Date.parse(t.expiresAt) > now).length;
-  $('#tokCount').textContent = `${open} unused token${open === 1 ? '' : 's'} active`;
-  $('#tokRevoke').disabled = !open;
-}
-async function tokRefresh() {                           // pick up which tokens were used or revoked (the codes themselves are never sent back)
-  try {
-    const { tokens } = await tokApi('GET'), by = new Map(tokens.map(t => [t.id, t]));
-    tok.items.forEach(t => { const s = by.get(t.id); if (s) { t.expiresAt = s.expires_at; t.state = s.used_at ? 'used' : 'open'; } });
-    tokRender();
-  } catch { /* the next poll will try again */ }
-}
-function openTokenModal() {
-  $('#tokErr').textContent = '';
-  $('#tokModal').hidden = false;
-  tokRender(); tokRefresh();
-  tok.poll = setInterval(tokRefresh, 5000); tok.tick = setInterval(tokRender, 1000);
-  $('#tokNew').focus();
-}
-function closeTokenModal() { $('#tokModal').hidden = true; clearInterval(tok.poll); clearInterval(tok.tick); }
-$('#tokClose').addEventListener('click', closeTokenModal);
-$('#tokModal').addEventListener('click', e => { if (e.target.id === 'tokModal') closeTokenModal(); });
-addEventListener('keydown', e => { if (e.key === 'Escape' && !$('#tokModal').hidden) closeTokenModal(); });
-$('#tokNew').addEventListener('click', async () => {
-  const b = $('#tokNew'); b.disabled = true; $('#tokErr').textContent = '';
-  try {
-    const t = await tokApi('POST');
-    tok.items.unshift({ id: t.id, code: t.code, expiresAt: t.expiresAt, state: 'open' });
-    tokRender();
-  } catch (e) { $('#tokErr').textContent = `Could not make a token: ${e.message}`; }
-  b.disabled = false;
-});
-$('#tokCopy').addEventListener('click', async () => {
-  const c = tok.items[0]?.code; if (!c) return;
-  try { await navigator.clipboard.writeText(c); toast('Token copied'); } catch { toast('Select the token and copy it by hand'); }
-});
-$('#tokRevoke').addEventListener('click', async () => {
-  $('#tokErr').textContent = '';
-  try { const r = await tokApi('DELETE'); toast(`Revoked ${r.revoked} token${r.revoked === 1 ? '' : 's'}`); await tokRefresh(); }
-  catch (e) { $('#tokErr').textContent = `Could not revoke: ${e.message}`; }
-});
 // the grey startup skeleton (in index.html) stays until the forecast has loaded or failed, so the what-if view never flashes
 const hideBoot = () => { const b = $('#boot'); if (!b || b.classList.contains('done')) return; b.classList.add('done'); setTimeout(() => b.remove(), 400); };
 (wxLoading ?? Promise.resolve()).catch(() => {}).then(() => setTimeout(hideBoot, 300));

@@ -31,8 +31,9 @@
   button.alt{display:block;width:100%;height:40px;background:none;border:1px solid var(--line);border-radius:8px;color:var(--txt);font:inherit;font-size:13px;font-weight:600;cursor:pointer}
   button.alt:hover{background:#12304f;border-color:#2a5a8a}
   button.alt:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
-  #tf button.alt{margin-top:10px}
-  .tokin{text-align:center;font-size:24px;letter-spacing:6px;font-family:Consolas,"Courier New",monospace;height:52px}
+  #rf button.alt,#rdone button.alt{margin-top:10px}
+  .hp{position:absolute;left:-9999px;width:1px;height:1px;opacity:0}
+  .done{margin:6px 0 8px;font-size:17px;text-align:center}
   .hint{margin:12px 0 0;color:var(--mut);font-size:11.5px;text-align:center}
   [hidden]{display:none!important}
   .err{min-height:20px;margin:12px 0 0;color:var(--err);font-size:12.5px;text-align:center}
@@ -51,14 +52,21 @@
     <p class="err" id="err" role="alert" aria-live="polite"></p>
   </form>
   <div class="or" id="orRow"><span>or</span></div>
-  <button type="button" class="alt" id="toToken">Temporary sign in with a token</button>
-  <form id="tf" novalidate hidden>
-    <div class="field"><label for="tok">6-DIGIT TOKEN</label><input id="tok" name="token" class="tokin" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="7" autocomplete="one-time-code" placeholder="000 000" required></div>
-    <button class="go" id="tgo" type="submit">Continue with token</button>
-    <p class="err" id="terr" role="alert" aria-live="polite"></p>
-    <button type="button" class="alt" id="toEmail">Back to email sign in</button>
-    <p class="hint">Ask the project owner for a token. It works once, and the session lasts 3 hours.</p>
+  <button type="button" class="alt" id="toRequest">Request access</button>
+  <form id="rf" novalidate hidden>
+    <div class="field"><label for="rname">YOUR NAME</label><input id="rname" name="name" type="text" autocomplete="name" maxlength="80" required></div>
+    <div class="field"><label for="remail">EMAIL (WE WILL SEND A CONFIRMATION LINK)</label><input id="remail" name="email" type="email" autocomplete="email" inputmode="email" maxlength="254" required></div>
+    <div class="field"><label for="rorg">ORGANIZATION (OPTIONAL)</label><input id="rorg" name="org" type="text" autocomplete="organization" maxlength="120"></div>
+    <input class="hp" id="rweb" name="website" type="text" tabindex="-1" autocomplete="off" aria-hidden="true">
+    <button class="go" id="rgo" type="submit">Send request</button>
+    <p class="err" id="rerr" role="alert" aria-live="polite"></p>
+    <button type="button" class="alt" id="toEmail">Back to sign in</button>
   </form>
+  <div id="rdone" hidden>
+    <h2 class="done">Check your email</h2>
+    <p class="hint">We sent a confirmation link to <b id="rsent"></b>. Open it to continue your request. If it is not in your inbox, check your spam folder.</p>
+    <button type="button" class="alt" id="doneBack">Back to sign in</button>
+  </div>
   <p class="note">Access is limited to invited reviewers. This demo uses simulated data; the model and source are not for redistribution.</p>
 </main>
 <script src="/login.js"></script>
