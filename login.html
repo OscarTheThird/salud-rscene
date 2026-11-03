@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Sign in · SALUD</title>
+<style>
+  :root{--bg:#06101d;--card:#0b1d35;--line:#1b3a5e;--txt:#e6f0fb;--mut:#8fb2d6;--acc:#2ee6d6;--btn:#1b7f9e;--btn-h:#2394b8;--err:#ff8f9a}
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{margin:0;background:radial-gradient(1200px 600px at 50% -10%,#10305a 0%,var(--bg) 60%);color:var(--txt);font:14px/1.4 "Segoe UI",Inter,system-ui,sans-serif;display:grid;place-items:center;padding:16px}
+  .card{width:min(400px,100%);background:linear-gradient(180deg,var(--card),#08172a);border:1px solid var(--line);border-radius:14px;padding:28px 26px 22px;box-shadow:0 20px 60px #000a}
+  .logo{display:block;background:#fff;border-radius:10px;padding:8px 14px;width:max-content;margin:0 auto 18px}
+  .logo img{display:block;height:34px;width:auto}
+  h1{margin:0 0 4px;font-size:19px;text-align:center}
+  .sub{margin:0 0 20px;color:var(--mut);text-align:center;font-size:12.5px}
+  label{display:block;margin:0 0 5px;font-size:12px;font-weight:600;color:var(--mut);letter-spacing:.3px}
+  .field{margin-bottom:14px}
+  input{width:100%;height:42px;padding:0 12px;background:#0a1b31;border:1px solid var(--line);border-radius:8px;color:var(--txt);font:inherit;outline:0}
+  input:focus{border-color:var(--acc);box-shadow:0 0 0 3px #2ee6d633}
+  .pw{position:relative}.pw input{padding-right:64px}
+  .show{position:absolute;right:6px;top:6px;height:30px;padding:0 10px;background:none;border:0;border-radius:6px;color:var(--mut);font:inherit;font-size:12px;font-weight:600;cursor:pointer}
+  .show:hover,.show:focus-visible{color:var(--txt);background:#12304f;outline:0}
+  button.go{width:100%;height:44px;margin-top:4px;background:var(--btn);border:1px solid #2aa6cc;border-radius:8px;color:#fff;font:inherit;font-weight:700;font-size:14px;cursor:pointer}
+  button.go:hover{background:var(--btn-h)}
+  button.go:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+  button.go:disabled{opacity:.6;cursor:progress}
+  .err{min-height:20px;margin:12px 0 0;color:var(--err);font-size:12.5px;text-align:center}
+  .note{margin:14px 0 0;padding-top:14px;border-top:1px solid var(--line);color:var(--mut);font-size:11.5px;text-align:center;line-height:1.5}
+</style>
+</head>
+<body>
+<main class="card">
+  <span class="logo"><img src="/assets/SALUD-LOGO-sm.png" alt="SALUD" width="97" height="34"></span>
+  <h1>Private preview</h1>
+  <p class="sub">Sign in to view the SALUD watershed decision-support demo.</p>
+  <form id="f" novalidate>
+    <div class="field"><label for="email">EMAIL</label><input id="email" name="email" type="email" autocomplete="username" inputmode="email" required autofocus></div>
+    <div class="field"><label for="pw">PASSWORD</label><div class="pw"><input id="pw" name="password" type="password" autocomplete="current-password" required><button type="button" class="show" id="show" aria-controls="pw" aria-pressed="false">Show</button></div></div>
+    <button class="go" id="go" type="submit">Sign in</button>
+    <p class="err" id="err" role="alert" aria-live="polite"></p>
+  </form>
+  <p class="note">Access is limited to invited reviewers. This demo uses simulated data; the model and source are not for redistribution.</p>
+</main>
+<script src="/login.js"></script>
+</body>
+</html>

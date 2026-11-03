@@ -1,0 +1,8 @@
+{
+  "name": "salud-rscene",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@vercel/functions": ">=2.0.0"
+  }
+}

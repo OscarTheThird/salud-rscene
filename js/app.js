@@ -1519,6 +1519,8 @@ addEventListener('keydown', e => { if (e.ctrlKey && e.key.toLowerCase() === 'k')
 
 update();
 $('#liveBtn').click();   // default mode: the live forecast (falls back to the Light what-if, with a toast, if the forecast can't load)
+// "Sign out" appears only where the login gate exists (the hosted site); locally and on a plain static host the endpoint is absent
+fetch('/api/session', { cache: 'no-store' }).then(r => (r.ok ? r.json() : null)).then(j => { if (j?.signedIn) $('#signout').hidden = false; }).catch(() => {});
 // the grey startup skeleton (in index.html) stays until the forecast has loaded or failed, so the what-if view never flashes
 const hideBoot = () => { const b = $('#boot'); if (!b || b.classList.contains('done')) return; b.classList.add('done'); setTimeout(() => b.remove(), 400); };
 (wxLoading ?? Promise.resolve()).catch(() => {}).then(() => setTimeout(hideBoot, 300));
