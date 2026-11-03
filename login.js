@@ -13,6 +13,34 @@ $('show').addEventListener('click', () => {
   $('show').setAttribute('aria-pressed', String(on));
 });
 
+// ---- temporary sign in with a 6-digit token (made by the admin) ----
+const tf = $('tf'), tok = $('tok'), tgo = $('tgo'), terr = $('terr');
+function showToken(on) {
+  tf.hidden = !on; f.hidden = on; $('orRow').hidden = on; $('toToken').hidden = on;
+  (on ? tok : $('email')).focus();
+}
+$('toToken').addEventListener('click', () => showToken(true));
+$('toEmail').addEventListener('click', () => showToken(false));
+tok.addEventListener('input', () => {                       // digits only, shown as "123 456"
+  const d = tok.value.replace(/\D/g, '').slice(0, 6);
+  tok.value = d.length > 3 ? `${d.slice(0, 3)} ${d.slice(3)}` : d;
+  terr.textContent = '';
+});
+tf.addEventListener('submit', async e => {
+  e.preventDefault();
+  const code = tok.value.replace(/\D/g, '');
+  if (code.length !== 6) { terr.textContent = 'Enter all 6 digits.'; return; }
+  tgo.disabled = true; tgo.textContent = 'Checking…'; terr.textContent = '';
+  const stop = msg => { terr.textContent = msg; tgo.disabled = false; tgo.textContent = 'Continue with token'; };
+  try {
+    const r = await fetch('/api/token-login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code }), credentials: 'same-origin' });
+    if (r.ok) { location.replace('/'); return; }
+    stop(r.status === 429 ? 'Too many attempts. Wait a few minutes and try again.' : r.status === 401 ? 'That token is invalid or has expired.' : r.status === 500 ? 'Token sign-in is not set up yet. Tell the project owner.' : 'Could not sign in with that token. Try again.');
+  } catch {
+    stop('Network problem. Check your connection and try again.');
+  }
+});
+
 const fail = msg => { err.textContent = msg; go.disabled = false; go.textContent = 'Sign in'; };
 
 f.addEventListener('submit', async e => {

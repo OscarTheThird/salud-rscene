@@ -1,8 +1,8 @@
-// The access rule for the whole site: only the login page, the login script, the session endpoint and the two logos are
-// public. Everything else (the app, its scripts and every data file) needs a valid session cookie.
+// The access rule for the whole site: only the login page, the login script, the two sign-in endpoints and the two logos are
+// public (/api/tokens, which makes tokens, is not: it needs a session and then an admin role). Everything else (the app, its scripts and every data file) needs a valid session cookie.
 import { COOKIE, parseCookie, verify } from './session.js';
 
-export const PUBLIC = new Set(['/login.html', '/login.js', '/api/session', '/assets/SALUD-LOGO-sm.png', '/assets/SALUD-mark.png', '/favicon.ico']);
+export const PUBLIC = new Set(['/login.html', '/login.js', '/api/session', '/api/token-login', '/assets/SALUD-LOGO-sm.png', '/assets/SALUD-mark.png', '/favicon.ico']);
 
 // null = let the request through; otherwise the Response to send instead
 export async function gate(request, secret) {

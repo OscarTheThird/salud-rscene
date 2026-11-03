@@ -26,6 +26,15 @@
   button.go:hover{background:var(--btn-h)}
   button.go:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
   button.go:disabled{opacity:.6;cursor:progress}
+  .or{display:flex;align-items:center;gap:10px;margin:14px 0 10px;color:var(--mut);font-size:11.5px}
+  .or::before,.or::after{content:"";flex:1;height:1px;background:var(--line)}
+  button.alt{display:block;width:100%;height:40px;background:none;border:1px solid var(--line);border-radius:8px;color:var(--txt);font:inherit;font-size:13px;font-weight:600;cursor:pointer}
+  button.alt:hover{background:#12304f;border-color:#2a5a8a}
+  button.alt:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+  #tf button.alt{margin-top:10px}
+  .tokin{text-align:center;font-size:24px;letter-spacing:6px;font-family:Consolas,"Courier New",monospace;height:52px}
+  .hint{margin:12px 0 0;color:var(--mut);font-size:11.5px;text-align:center}
+  [hidden]{display:none!important}
   .err{min-height:20px;margin:12px 0 0;color:var(--err);font-size:12.5px;text-align:center}
   .note{margin:14px 0 0;padding-top:14px;border-top:1px solid var(--line);color:var(--mut);font-size:11.5px;text-align:center;line-height:1.5}
 </style>
@@ -40,6 +49,15 @@
     <div class="field"><label for="pw">PASSWORD</label><div class="pw"><input id="pw" name="password" type="password" autocomplete="current-password" required><button type="button" class="show" id="show" aria-controls="pw" aria-pressed="false">Show</button></div></div>
     <button class="go" id="go" type="submit">Sign in</button>
     <p class="err" id="err" role="alert" aria-live="polite"></p>
+  </form>
+  <div class="or" id="orRow"><span>or</span></div>
+  <button type="button" class="alt" id="toToken">Temporary sign in with a token</button>
+  <form id="tf" novalidate hidden>
+    <div class="field"><label for="tok">6-DIGIT TOKEN</label><input id="tok" name="token" class="tokin" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="7" autocomplete="one-time-code" placeholder="000 000" required></div>
+    <button class="go" id="tgo" type="submit">Continue with token</button>
+    <p class="err" id="terr" role="alert" aria-live="polite"></p>
+    <button type="button" class="alt" id="toEmail">Back to email sign in</button>
+    <p class="hint">Ask the project owner for a token. It works once, and the session lasts 3 hours.</p>
   </form>
   <p class="note">Access is limited to invited reviewers. This demo uses simulated data; the model and source are not for redistribution.</p>
 </main>
