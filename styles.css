@@ -161,7 +161,7 @@ html.mobile .reqmodal{display:none}
 .infocard[hidden]{display:none}
 .infocard h4{font-size:13px;display:flex;align-items:center;gap:8px}
 .infocard .x{margin-left:auto;cursor:pointer;color:var(--mut);font-size:16px;line-height:1}
-.infocard .realref{margin-top:8px;padding:7px 9px;border:1px solid #2a5a8a;border-left:3px solid #4fb3ff;border-radius:7px;background:#0a1b31;font-size:11px;line-height:1.4}
+.infocard .realref{margin-top:8px;padding:7px 9px;border:1px solid #2a5a8a;border-radius:7px;background:#0c2038;font-size:11px;line-height:1.4}
 .infocard .realref b{display:block;font-size:9.5px;letter-spacing:.6px;color:#8fd0ff}
 .infocard .realref p{margin:3px 0 4px;color:#c3d5ea}
 .infocard .realref small{display:block;color:#f5d96a}
