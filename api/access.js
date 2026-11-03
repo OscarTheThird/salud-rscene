@@ -31,8 +31,10 @@ async function startRequest(request, body, secret, now) {
     || (await count(`access_requests?select=id&created_at=gte.${ago(hour, now)}`)) >= LIMITS.allPerHour) {
     return json({ error: 'Too many requests. Try again later.' }, 429);
   }
-  // the same address asking again and again gets the same answer but no more email (no mail-bombing a third party)
-  if ((await count(`access_requests?select=id&email=eq.${q(email)}&created_at=gte.${ago(24 * hour, now)}`)) >= LIMITS.emailPerDay) return json({ ok: true });
+  // the same address asking again and again gets no more email (no mail-bombing a third party), and is told so
+  if ((await count(`access_requests?select=id&email=eq.${q(email)}&created_at=gte.${ago(24 * hour, now)}`)) >= LIMITS.emailPerDay) {
+    return json({ error: 'This email has already asked several times today. Please use the link in your earlier email, or ask the project owner.' }, 429);
+  }
 
   const r = await rest('access_requests', { method: 'POST', prefer: 'return=representation', body: { name, email, org: org || null, ip_hash: ipHash, country: request.headers.get('x-vercel-ip-country') || null } });
   const row = r.ok ? (await r.json())[0] : null;
@@ -90,7 +92,7 @@ async function poll(request, body, secret, now) {
     const c = await rest(`access_requests?id=eq.${id}&status=eq.approved`, { method: 'PATCH', prefer: 'return=representation', body: { status: 'claimed', claimed_at: iso, verified_at: row.verified_at ?? iso } });
     if (!(c.ok && (await c.json()).length)) return json({ state: 'expired' });
     const exp = Math.floor(now / 1000) + GUEST_TTL_S;
-    const cookie = cookieHeader(await sign({ e: `guest:${row.email}`, r: 'guest', exp }, secret), GUEST_TTL_S);
+    const cookie = cookieHeader(await sign({ e: `guest:${row.email}`, r: 'guest', n: row.name, exp }, secret), GUEST_TTL_S);
     return json({ state: 'in' }, 200, { 'Set-Cookie': cookie });
   }
   return json({ state: 'expired' });                                              // claimed already

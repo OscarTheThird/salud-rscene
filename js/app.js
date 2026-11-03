@@ -274,6 +274,20 @@ function renderLiveHeader() {
   $('#predTitle').firstChild.textContent = live ? 'LIVE WATER OUTLOOK' : 'WHAT-IF WATER OUTLOOK';
   $('#predSub').textContent = live ? '· real weather forecast for Catbalogan → simulated water system' : '· test a weather scenario on the simulated water system';
   $('#sbSpeed').textContent = live ? 'LIVE' : speed + '×';
+  renderModePill();
+}
+// the mode pill (sidebar and phone header) says LIVE FORECAST only while a real forecast is driving the model, otherwise SIMULATION MODE
+const PILL_SIM = $('.sidebar .sys')?.title ?? '';
+const PILL_LIVE = 'Live forecast: rainfall, temperature and ground wetness come from a real weather forecast (Open-Meteo, a model forecast and not a rain gauge). The water system (reservoir, treatment plant, pumps, demand, service areas) is still simulated. Real GIS data: the study-area boundary and the DEM layers.';
+function renderModePill() {
+  const live = !!wxLive();
+  $$('.sys').forEach(p => {
+    p.classList.toggle('sim', !live);
+    p.title = live ? PILL_LIVE : (p.closest('.sidebar') ? PILL_SIM : 'Scenario simulation. Real GIS data: study-area boundary and DEM layers only. Everything else is simulated.');
+    const t = p.querySelector('.sys-t'), sh = p.querySelector('.sys-s');
+    if (t) t.textContent = live ? 'LIVE FORECAST' : 'SIMULATION MODE';
+    if (sh) sh.textContent = live ? 'LIVE' : 'SIM';
+  });
 }
 // the outlook at a glance, for operators: weather tiles (real forecast or what-if) + a water-supply card (simulated)
 const ICON_SUN = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4.5" fill="#f5c542"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1" stroke="#f5c542" stroke-width="2" stroke-linecap="round"/></svg>';
@@ -1376,6 +1390,26 @@ function gisPoints() {
       lonlat: f.geometry.coordinates, name: p.short, cls: `fac fac-${p.kind}${p.quality === 'published' ? '' : ' approx'}`,
       info: { title: p.name, sub: `${FAC_POS[p.quality] ?? p.quality} · ${p.basis}`, rows: p.facts } }; })];
 }
+// OpenStreetMap answers a request that hides the site name (no referrer) with an "Access blocked" picture and still says 200.
+// Some browsers, extensions or privacy settings strip the referrer. Detect it by comparing a normal request with one forced to
+// carry no referrer: if both give the same picture, the street map is blocked here, and satellite is used instead.
+let streetOk = null;
+async function probeStreet() {
+  if (streetOk !== null) return streetOk;
+  try {
+    const url = BASEMAPS.street.url(12, 3469, 1912);                 // a tile over the study area
+    const [a, b] = await Promise.all([fetch(url, { cache: 'no-store' }), fetch(url, { cache: 'no-store', referrerPolicy: 'no-referrer' })]);
+    const [x, y] = (await Promise.all([a.arrayBuffer(), b.arrayBuffer()])).map(buf => new Uint8Array(buf));
+    streetOk = !(x.length === y.length && x.every((v, i) => v === y[i]));
+  } catch { streetOk = true; }                                       // cannot tell (offline): leave the choice as it is
+  return streetOk;
+}
+function useStreetOrSatellite() {
+  probeStreet().then(ok => {
+    if (ok) { gisBase = 'street'; gis.setBasemap('street'); } else { gisBase = 'satellite'; gis.setBasemap('satellite'); toast('The street map is blocked in this browser, so satellite is shown instead.'); }
+    gisRerender(`[data-base="${gisBase}"]`);
+  });
+}
 function initGis() {
   if (gis || !BRGY?.units?.length) return;
   const reserve = polysOf(SA.raw?.reserve), catchment = polysOf(SA.raw?.catchment);
@@ -1384,9 +1418,10 @@ function initGis() {
     onSelect: u => { selected = u ? 'brgy:' + u.code : null; renderInfo(); },
   });
   gis.setData(BRGY, { reserve, catchment, points: gisPoints() }, brgyOverlap);
-  gis.setBasemap(gisBase);
+  gis.setBasemap(gisBase === 'street' ? 'none' : gisBase);            // no street tiles until we know they are not blocked
   new ResizeObserver(() => gis.resize()).observe($('#gis2d'));
   renderGisUi();
+  if (gisBase === 'street') useStreetOrSatellite();
 }
 function renderGisUi() {
   const lg = gis.setMetric(gisMetric), T = BRGY.totals, m = METRICS[gisMetric], B = BASEMAPS[gisBase];
@@ -1411,7 +1446,11 @@ const gisRerender = sel => { const had = document.activeElement?.closest?.('#gis
 document.addEventListener('click', e => {
   if (!gis) return;
   const b = e.target.closest('#gisUi [data-base]'), mt = e.target.closest('#gisUi [data-metric]'), t = e.target.closest('#gisLegToggle');
-  if (b) { gisBase = b.dataset.base; gis.setBasemap(gisBase); gisRerender(`[data-base="${gisBase}"]`); }
+  if (b) {
+    gisBase = b.dataset.base;
+    if (gisBase === 'street') { gis.setBasemap('none'); useStreetOrSatellite(); } else gis.setBasemap(gisBase);
+    gisRerender(`[data-base="${gisBase}"]`);
+  }
   else if (mt) { gisMetric = mt.dataset.metric; gisRerender(`[data-metric="${gisMetric}"]`); }
   else if (t) { gisLegOpen = !gisLegOpen; try { localStorage.setItem(GIS_LEG_KEY, gisLegOpen ? '1' : '0'); } catch {} gisRerender('#gisLegToggle'); }
 });
@@ -1524,7 +1563,12 @@ $('#liveBtn').click();   // default mode: the live forecast (falls back to the L
 fetch('/api/session', { cache: 'no-store' }).then(r => (r.ok ? r.json() : null)).then(j => {
   if (!j?.signedIn) return;
   $('#signout').hidden = false;
-  $('.av').title = `Signed in · ${j.role}`;
+  const LABEL = { admin: 'Admin', viewer: 'Viewer', guest: 'Visitor' };
+  $('#roleChip').textContent = LABEL[j.role] ?? j.role; $('#roleChip').classList.toggle('admin', j.role === 'admin'); $('#roleChip').hidden = false;
+  if (j.role === 'guest') {                                                   // an approved visitor is shown as a visitor, not as the admin
+    $('#avatar').textContent = (j.name || 'V').split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase();
+    $('#avatar').title = `Signed in as a visitor${j.name ? ' · ' + j.name : ''}`;
+  } else $('#avatar').title = `Signed in · ${LABEL[j.role] ?? j.role}`;
   if (j.role === 'admin') { $('#navReq').hidden = false; reqCount(); setInterval(reqCount, 60000); }       // only admins see the requests screen
   // a time-limited session ends quietly: when the cookie runs out, go back to the sign-in page
   setInterval(() => fetch('/api/session', { cache: 'no-store' }).then(r => (r.ok ? r.json() : null)).then(s => { if (s && !s.signedIn) location.replace('/login.html'); }).catch(() => {}), 30000);

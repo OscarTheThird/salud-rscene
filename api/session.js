@@ -21,7 +21,7 @@ export default {
     }
     if (request.method === 'GET') {
       const p = await verify(parseCookie(request.headers.get('cookie') ?? '')[COOKIE], secret);
-      return json(p ? { signedIn: true, role: p.r ?? 'viewer' } : { signedIn: false });
+      return json(p ? { signedIn: true, role: p.r ?? 'viewer', ...(p.r === 'guest' && p.n ? { name: String(p.n).slice(0, 80) } : {}) } : { signedIn: false });
     }
     if (request.method !== 'POST') return json({ error: 'Method not allowed' }, 405);
     if (!sameOrigin(request)) return json({ error: 'Forbidden' }, 403);

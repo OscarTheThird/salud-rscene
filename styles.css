@@ -93,6 +93,8 @@ html.sbhover:not(.mobile) .sidebar:not(.sb-x) .reqbadge{position:absolute;margin
 .reqchip.c-wait{color:#ffd98a;border-color:#7a5a1a}.reqchip.c-mail{color:var(--mut);border-color:var(--line)}.reqchip.c-ok{color:#9ff5c0;border-color:#1c6a45;background:#145a38}.reqchip.c-no{color:#ffb3b8;border-color:#5a2a35}.reqchip.c-used{color:#9fd3ff;border-color:#2a5a8a;background:#0c2038}
 .reqerr{min-height:18px;margin:8px 0 0;color:#ff8f9a;font-size:12px}
 html.mobile .reqmodal{display:none}
+.rolechip{padding:3px 10px;border-radius:12px;border:1px solid #2a5a8a;background:#0c2038;color:#9fd3ff;font-size:11px;font-weight:700;letter-spacing:.4px;white-space:nowrap}
+.rolechip.admin{border-color:#7a5a1a;background:#2a210c;color:#f5d96a}
 .signout{margin-left:-6px;padding:5px 10px;border:1px solid var(--line);border-radius:7px;background:#0a1b31;color:var(--mut);font-size:11.5px;font-weight:600;text-decoration:none;white-space:nowrap}
 .signout:hover,.signout:focus-visible{color:#fff;background:#12304f;outline:0}
 .user{display:flex;align-items:center;gap:10px}.user b{display:block}.av{width:38px;height:38px;border-radius:50%;background:radial-gradient(circle at 30% 30%,#4aa8ff,#1c4f96);display:grid;place-items:center;font-weight:600;border:2px solid #2d6fc4}

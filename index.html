@@ -70,7 +70,7 @@
     <header class="mhead">
       <button type="button" class="mmenu" aria-label="Open menu" aria-controls="sidebar" aria-expanded="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
       <div class="mbrand"><img src="assets/SALUD-LOGO-sm.png" alt="SALUD" class="brand-logo" width="97" height="28"></div>
-      <div class="sys sim" title="Scenario simulation. Real GIS data: study-area boundary and DEM layers only. Everything else is simulated."><span class="pulse"></span>SIMULATION MODE</div>
+      <div class="sys sim" title="Scenario simulation. Real GIS data: study-area boundary and DEM layers only. Everything else is simulated."><span class="pulse"></span><span class="sys-t">SIMULATION MODE</span></div>
     </header>
     <div class="boot" id="boot" aria-hidden="true">
       <div class="boot-top"><i class="sk" style="width:26%"></i><i class="sk" style="width:26%"></i><i class="sk" style="width:26%"></i><i class="sk bs" style="margin-left:auto;width:300px"></i><i class="sk bc"></i></div>
@@ -97,7 +97,8 @@
         <div id="searchRes" class="sres"></div>
       </div>
       <button class="bell" id="bell" title="Decision alerts"><svg><use href="#i-bell"/></svg><i id="bellDot"></i></button>
-      <span class="av" title="LGU – Watershed Management">OM</span>
+      <span class="rolechip" id="roleChip" hidden></span>
+      <span class="av" id="avatar" title="LGU – Watershed Management">OM</span>
       <a class="signout" id="signout" href="/api/session?logout=1" hidden>Sign out</a>
     </header>
 

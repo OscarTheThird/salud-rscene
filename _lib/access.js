@@ -5,10 +5,10 @@ import { hmacHex, esc } from './util.js';
 import { rest } from './db.js';
 import { mailer } from './mail.js';
 
-export const ACCESS_MIN = 30, GUEST_TTL_S = ACCESS_MIN * 60;     // how long an approved visitor stays signed in
+export const ACCESS_MIN = 60, GUEST_TTL_S = ACCESS_MIN * 60;     // how long an approved visitor stays signed in
 export const REQUEST_TTL_H = 24;                                 // a request must be confirmed and decided within a day
 export const CLAIM_H = 2;                                        // an approved visitor must open the link within 2 hours
-export const LIMITS = { ipPerHour: 3, allPerHour: 30, emailPerDay: 2 };
+export const LIMITS = { ipPerHour: 20, allPerHour: 30, emailPerDay: 3 };
 export const EMAIL_RE = /^[^\s@<>()[\]\\,;:"]+@[^\s@<>()[\]\\,;:"]+\.[^\s@<>()[\]\\,;:"]{2,}$/;
 export const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
