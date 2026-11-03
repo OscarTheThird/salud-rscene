@@ -1034,6 +1034,14 @@ function hydroRows() {
 }
 
 // ---------- selection card ----------
+// "Real reference" note under a simulated card: what the real system is (published by the water district)
+function realRef(key) {
+  let r = null;
+  try { r = FAC?.reference?.[key]; } catch { /* the facility file is not loaded yet */ }
+  if (!r) return '';
+  const esc = t => String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  return `<div class="realref"><b>REAL REFERENCE · water district</b><p>${esc(r.real)}</p><small>${esc(r.model)}</small></div>`;
+}
 function infoHtml(id) {
   if (String(id).startsWith('brgy:')) return brgyInfo(id);
   const row = (a, b) => `<div class="row"><span>${a}</span><span>${b}</span></div>`;
@@ -1076,7 +1084,7 @@ function infoHtml(id) {
       `<div class="thr"><b style="font-size:10px;color:#8fb2d6;letter-spacing:.6px">OPERATIONAL THRESHOLDS</b>
       ${THRESHOLDS(S).filter(t => t.key !== 'rotation').map(t => row(`${lineSample(t, 18)} ${t.name}`, `${Math.round(t.v / CAP * 100)}%`)).join('')}
       ${row(`${lineSample(THRESHOLDS(S)[2], 18)} Rationing (pump rotation)`, `<b id="thrv">${thr}% · ${fmt(S.rotThr)} m³</b>`)}<input type="range" min="20" max="60" step="5" value="${thr}" data-thr>
-      ${row('Rotation mode', `<select data-rotmode>${['auto', 'on', 'off'].map(x => `<option value="${x}" ${S.rotMode === x ? 'selected' : ''}>${x[0].toUpperCase() + x.slice(1)}</option>`).join('')}</select>`)}</div>`];
+      ${row('Rotation mode', `<select data-rotmode>${['auto', 'on', 'off'].map(x => `<option value="${x}" ${S.rotMode === x ? 'selected' : ''}>${x[0].toUpperCase() + x.slice(1)}</option>`).join('')}</select>`)}</div>`, realRef('reservoir')];
   }
   if (id.startsWith('PUMP')) {
     const p = S.pumps.find(x => x.id === id), zn = svc.zones[p.zone], cov = sim.backupCoverage(S);
@@ -1086,7 +1094,7 @@ function infoHtml(id) {
     return [p.name, row('Status', `<span class="st ${p.status}">${p.status}</span>`), row('Flow / capacity', `${fmt(p.q)} / ${p.flow} m³/h (${pctf(p.q / p.flow)} load)`), row('Serves', `${zn.name} · ${zn.label}`),
       row('Area supply / demand', `<b style="color:${ST_COL[zn.status]}">${zn.status === 'none' ? 'NO SUPPLY' : pctf(zn.ratio)}</b>`),
       row('Draws from', 'Treated Water Storage (common header)'),
-      row('If unavailable', id === 'PUMP-03' ? `<b style="color:#ff7b84">${fmt(zoneHH('C'))} hh lose supply (no backup)</b>` : `backup covers ${pctf(cov.cover)} of A+B peak`), actions];
+      row('If unavailable', id === 'PUMP-03' ? `<b style="color:#ff7b84">${fmt(zoneHH('C'))} hh lose supply (no backup)</b>` : `backup covers ${pctf(cov.cover)} of A+B peak`), realRef('pumps'), actions];
   }
   if (sim.VALVES[id]) {
     const V = sim.VALVES[id], open = S.valves[id];
@@ -1097,17 +1105,17 @@ function infoHtml(id) {
   if (id === 'wtp') return ['Water Treatment Plant', '<small class="muted">Simulated plant: raw water in, treated water out. Processes and water quality are not modelled.</small>',
     row('Draws from', 'Raw-water reservoir (raw water)'), row('Process (schematic)', 'Coagulation → Settling → Filtration → Cl₂'),
     row('Treating now', `${fmt(m.treat)} / ${sim.WTP_CAP} m³/h`), row('Limited by', m.treatLimited ? '<b style="color:#ff9f43">raw water above dead storage</b>' : 'level control (follows pump demand)'),
-    row('Feeds', 'Treated Water Storage → Pump A · B · C')];
+    row('Feeds', 'Treated Water Storage → Pump A · B · C'), realRef('plant')];
   if (id === 'tws') return ['Treated Water Storage', '<small class="muted">Simulated clear well / ground tank. The single source for all three distribution pumps.</small>',
     row('Stored', `${fmt(S.treated)} m³ (${pctf(S.treated / sim.TWS_CAP)})`), row('Usable (above dead storage)', `${fmt(Math.max(0, S.treated - sim.TWS_DEAD))} m³`),
     row('Capacity · dead storage', `${fmt(sim.TWS_CAP)} · ${fmt(sim.TWS_DEAD)} m³`), row('Treated inflow (WTP)', `${fmt(m.treat)} m³/h`),
     row('Pumped to network', `${fmt(m.pumpOut)} m³/h`), row('Net', `${sgn(m.netT)} m³/h`), row('Supplies', 'Pump A → Area A · Pump B → Area B · Pump C → Area C'),
-    ...(m.storageLimited ? ['<small style="color:#ff9f43">Pumping limited by available treated water</small>'] : [])];
+    ...(m.storageLimited ? ['<small style="color:#ff9f43">Pumping limited by available treated water</small>'] : []), realRef('storage')];
   if (id === 'forest') {
     const fate = rainfate();
     return ['Upper Watershed (catchment)', row('Rainfall (scenario)', m.P.toFixed(1) + ' mm/day'), row('Runs off now (est.)', m.P < 1 ? '–' : pctf(m.Q / m.P)), row('Runoff to reservoir', fmt(m.runoff) + ' m³/h'), row('Next 72 h', fate.txt), row('Composite CN', `${m.cn.toFixed(1)} (AMC ${m.amc})`), row('Forest cover', `${(S.lu.forestCover * 100).toFixed(0)}% of catchment`), clearSlider()];
   }
-  if (id === 'intake') return ['River Intake', row('Intake inflow', fmt(m.pumpIn) + ' m³/h'), row('Status', m.pumpIn > 0 ? 'Running' : S.scenario === 'heavy' ? 'Paused (turbidity, scenario rule)' : 'Off'), `<button class="btn ${S.intakeOn ? 'red' : ''}" data-act="intake">${S.intakeOn ? 'Stop intake pump' : 'Start intake pump'}</button>`];
+  if (id === 'intake') return ['River Intake', row('Intake inflow', fmt(m.pumpIn) + ' m³/h'), row('Status', m.pumpIn > 0 ? 'Running' : S.scenario === 'heavy' ? 'Paused (turbidity, scenario rule)' : 'Off'), `<button class="btn ${S.intakeOn ? 'red' : ''}" data-act="intake">${S.intakeOn ? 'Stop intake pump' : 'Start intake pump'}</button>`, realRef('intake')];
   const rr = svc.rows.find(x => x.ent === id);
   if (!rr) return [id];
   const zn = svc.zones[rr.zone];

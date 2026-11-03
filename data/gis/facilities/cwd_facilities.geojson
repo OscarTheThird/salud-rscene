@@ -5,10 +5,26 @@
     "label": "Water district facilities",
     "compiled": "2026-10-31",
     "sources": [
-      { "id": "cwd-about", "title": "Catbalogan Water District, About Us (site © 2018)", "url": "https://www.catbaloganwd.gov.ph/about%20us.html" },
-      { "id": "cwd-kulador", "title": "Catbalogan Water District, Kulador Treatment Plant page", "url": "https://catbaloganwd.gov.ph/Kulador.html" },
-      { "id": "osm", "title": "OpenStreetMap (Nominatim lookup, 2026-10-31)", "url": "https://www.openstreetmap.org/" },
-      { "id": "psgc", "title": "PSGC 2023 barangay boundaries (data/gis/admin)", "url": "https://psa.gov.ph/classification/psgc" }
+      {
+        "id": "cwd-about",
+        "title": "Catbalogan Water District, About Us (site © 2018)",
+        "url": "https://www.catbaloganwd.gov.ph/about%20us.html"
+      },
+      {
+        "id": "cwd-kulador",
+        "title": "Catbalogan Water District, Kulador Treatment Plant page",
+        "url": "https://catbaloganwd.gov.ph/Kulador.html"
+      },
+      {
+        "id": "osm",
+        "title": "OpenStreetMap (Nominatim lookup, 2026-10-31)",
+        "url": "https://www.openstreetmap.org/"
+      },
+      {
+        "id": "psgc",
+        "title": "PSGC 2023 barangay boundaries (data/gis/admin)",
+        "url": "https://psa.gov.ph/classification/psgc"
+      }
     ],
     "positionQuality": {
       "published": "Coordinate published by the water district (REAL).",
@@ -21,7 +37,13 @@
   "features": [
     {
       "type": "Feature",
-      "geometry": { "type": "Point", "coordinates": [124.902861, 11.812333] },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          124.902861,
+          11.812333
+        ]
+      },
       "properties": {
         "id": "kulador",
         "name": "Kulador Treatment Plant",
@@ -36,12 +58,21 @@
           "Also receives the Caramayon spring water by gravity (10\" pipe)",
           "Turned over by the municipal waterworks in 1979, when the water district was created"
         ],
-        "sources": ["cwd-kulador", "cwd-about"]
+        "sources": [
+          "cwd-kulador",
+          "cwd-about"
+        ]
       }
     },
     {
       "type": "Feature",
-      "geometry": { "type": "Point", "coordinates": [124.9039403, 11.8462208] },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          124.9039403,
+          11.8462208
+        ]
+      },
       "properties": {
         "id": "caramayon",
         "name": "Caramayon Spring and Pumping Station",
@@ -56,12 +87,21 @@
           "Used when Masacpasac and Kulador flows are low (below 10 L/s)",
           "Built 2002–2005 (ADB loan through LWUA's Small Towns Water Supply project); spring at 84.7 m elevation, reachable only on foot"
         ],
-        "sources": ["cwd-about", "osm"]
+        "sources": [
+          "cwd-about",
+          "osm"
+        ]
       }
     },
     {
       "type": "Feature",
-      "geometry": { "type": "Point", "coordinates": [124.9164, 11.7859] },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          124.9164,
+          11.7859
+        ]
+      },
       "properties": {
         "id": "masacpasac",
         "name": "Masacpasac Sub-surface Channel",
@@ -75,12 +115,21 @@
           "Dry-season (April–May) water depth averages 1.32 m",
           "Discovered by the Americans in 1945; the 1979 system had an intake box, sand filters and a 9.66 km transmission line"
         ],
-        "sources": ["cwd-about", "psgc"]
+        "sources": [
+          "cwd-about",
+          "psgc"
+        ]
       }
     },
     {
       "type": "Feature",
-      "geometry": { "type": "Point", "coordinates": [124.8795917, 11.7751923] },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          124.8795917,
+          11.7751923
+        ]
+      },
       "properties": {
         "id": "cwd-office",
         "name": "Catbalogan Water District office",
@@ -93,8 +142,35 @@
           "LWUA Conditional Certificate of Conformance No. 107, 7 Dec 1979",
           "Phone (055) 544-2576"
         ],
-        "sources": ["cwd-about", "osm"]
+        "sources": [
+          "cwd-about",
+          "osm"
+        ]
       }
     }
-  ]
+  ],
+  "reference": {
+    "source": "cwd-about",
+    "note": "Published figures from the water district About Us page. The model keeps its own simulated numbers; these notes only show what the real system is.",
+    "pumps": {
+      "real": "Caramayon Pumping Station: 3 high-pressure submersible pumps, 91 L/s combined (about 328 m³/h, about 109 m³/h each if shared equally; the size of each pump is not published). Power: a 13.2 kV line (11.9 km) with a standby generator. Pump kW or head are not published. They lift water to a break-pressure chamber, then it flows by gravity 4.65 km to the Kulador plant. The district says they can serve about 9,000 households.",
+      "model": "SIMULATED: pumps A, B and C here are distribution pumps after treatment (240, 240 and 220 m³/h, 700 m³/h in total), larger than the real station and in a different place in the chain."
+    },
+    "plant": {
+      "real": "Kulador plant: about 20 L/s (about 72 m³/h). Antiao River water comes over a spillway 16 m wide and 1 m high, then a sedimentation box, a rapid sand filter, a slow sand filter and chlorination, with a backwash tank. Two transmission lines (6 in CI and 8 in GI).",
+      "model": "SIMULATED: the modelled plant treats up to 720 m³/h, about 10 times the published figure, and its processes are not modelled."
+    },
+    "storage": {
+      "real": "Real storage is small: the 1979 ground reservoir held 440 m³ (now unused), the Kulador backwash tank is about 121 m³ (6.6 m wide, 3.55 m high) and the slow sand filter about 365 m³ (19.5 × 8.5 × 2.2 m).",
+      "model": "SIMULATED: the 3,000 m³ treated storage is a stand-in, about 7 times the old ground reservoir."
+    },
+    "reservoir": {
+      "real": "No large raw-water reservoir is documented. What exists: the Caramayon mini dam and sump tank (size not published), the Antiao spillway (16 m × 1 m) and the Masacpasac sub-surface channel (about 185 m², 2.2 m deep, 20 to 40 L/s).",
+      "model": "SIMULATED: the 100,000 m³ raw-water reservoir is a stand-in for the system, not a real structure."
+    },
+    "intake": {
+      "real": "Real raw water comes from the Antiao River at Kulador (spillway), Masacpasac (20 to 40 L/s) and, when those are low (below about 10 L/s), Caramayon.",
+      "model": "SIMULATED: the intake pump here is a modelling device."
+    }
+  }
 }
