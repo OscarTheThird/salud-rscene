@@ -23,7 +23,7 @@ async function poll() {
     const j = await res.json().catch(() => ({}));
     if (res.ok && j.state === 'in') { say('Approved', 'Opening SALUD…', { spin: true }); location.replace('/'); return; }
     if (res.ok && END[j.state]) { say(...END[j.state], { back: true }); return; }
-    if (res.ok && j.state === 'waiting') { errors = 0; say('Waiting for approval', 'Your email is confirmed. This page will open automatically when your request is approved. Keep it open.', { spin: true }); }
+    if (res.ok && j.state === 'waiting') { errors = 0; say('Waiting for approval', 'Your email is confirmed. The project owner has been asked to approve your request. You will get an email when it is approved, and this page opens automatically if you keep it open.', { spin: true }); }
     else if (++errors > 5) { say('Something went wrong', 'Reload this page to try again.', { back: true }); return; }
   } catch {
     if (++errors > 5) { say('Connection problem', 'Reload this page to try again.', { back: true }); return; }

@@ -1463,6 +1463,7 @@ const NAV = {
 };
 $$('#nav a').forEach(a => a.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); a.click(); } }));
 $$('#nav a').forEach(a => a.addEventListener('click', () => {
+  if (a.dataset.nav === 'requests') { openRequests(); return; }     // a dialog, not a page: keep the current item highlighted
   $$('#nav a').forEach(x => x.classList.toggle('active', x === a));
   NAV[a.dataset.nav]?.();
 }));
@@ -1524,9 +1525,54 @@ fetch('/api/session', { cache: 'no-store' }).then(r => (r.ok ? r.json() : null))
   if (!j?.signedIn) return;
   $('#signout').hidden = false;
   $('.av').title = `Signed in · ${j.role}`;
+  if (j.role === 'admin') { $('#navReq').hidden = false; reqCount(); setInterval(reqCount, 60000); }       // only admins see the requests screen
   // a time-limited session ends quietly: when the cookie runs out, go back to the sign-in page
   setInterval(() => fetch('/api/session', { cache: 'no-store' }).then(r => (r.ok ? r.json() : null)).then(s => { if (s && !s.signedIn) location.replace('/login.html'); }).catch(() => {}), 30000);
 }).catch(() => {});
+// ---------- admin: who asked for access, and approve or deny (the server checks the admin role on every call) ----------
+const reqEsc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+let reqTimer = 0;
+async function reqApi(method, body) {
+  const r = await fetch('/api/requests', { method, cache: 'no-store', headers: body ? { 'Content-Type': 'application/json' } : undefined, body: body ? JSON.stringify(body) : undefined });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error || `HTTP ${r.status}`);
+  return j;
+}
+const reqAgo = t => { const m = Math.max(0, Math.round((Date.now() - Date.parse(t)) / 60000)); return m < 1 ? 'just now' : m < 60 ? `${m} min ago` : m < 1440 ? `${Math.round(m / 60)} h ago` : `${Math.round(m / 1440)} d ago`; };
+const reqState = r => {
+  const old = Date.now() - Date.parse(r.created_at) > 24 * 3600000;
+  if (r.status === 'awaiting') return old ? ['Expired', 'c-no'] : ['Needs your decision', 'c-wait'];
+  if (r.status === 'pending_email') return old ? ['Expired', 'c-no'] : ['Email not confirmed yet', 'c-wait'];
+  return { approved: ['Approved', 'c-ok'], denied: ['Denied', 'c-no'], claimed: ['Approved · signed in', 'c-used'] }[r.status] ?? [r.status, 'c-mail'];
+};
+function reqRender(list) {
+  const waiting = list.filter(r => ['awaiting', 'pending_email'].includes(r.status) && Date.now() - Date.parse(r.created_at) <= 24 * 3600000);
+  const badge = $('#reqBadge'); badge.hidden = !waiting.length; badge.textContent = waiting.length;
+  $('#reqList').innerHTML = list.length ? list.map(r => {
+    const [label, cls] = reqState(r), live = label === 'Needs your decision' || label === 'Email not confirmed yet';
+    return `<div class="reqitem${live ? ' wait' : ''}"><div><b>${reqEsc(r.name)}</b><small>${reqEsc(r.email)}${r.org ? ' · ' + reqEsc(r.org) : ''}${r.country ? ' · ' + reqEsc(r.country) : ''} · ${reqAgo(r.created_at)}</small></div>
+      ${live ? `<div class="reqact"><button type="button" class="reqbtn ok" data-req="${reqEsc(r.id)}" data-act="approve">Approve</button><button type="button" class="reqbtn no" data-req="${reqEsc(r.id)}" data-act="deny">Deny</button></div>` : ''}
+      <span class="reqchip ${cls}">${label}</span></div>`;
+  }).join('') : '<p class="reqempty">No requests in the last 7 days.</p>';
+}
+async function reqRefresh() {
+  try { reqRender((await reqApi('GET')).requests); $('#reqErr').textContent = ''; } catch (e) { $('#reqErr').textContent = `Could not load requests: ${e.message}`; }
+}
+async function reqCount() {                              // keeps the number on the sidebar item current
+  try { const { requests } = await reqApi('GET'); const n = requests.filter(r => ['awaiting', 'pending_email'].includes(r.status) && Date.now() - Date.parse(r.created_at) <= 24 * 3600000).length; $('#reqBadge').hidden = !n; $('#reqBadge').textContent = n; } catch { /* the next check will try again */ }
+}
+function openRequests() { $('#reqModal').hidden = false; $('#reqErr').textContent = ''; reqRefresh(); reqTimer = setInterval(reqRefresh, 8000); }
+function closeRequests() { $('#reqModal').hidden = true; clearInterval(reqTimer); }
+$('#reqClose').addEventListener('click', closeRequests);
+$('#reqModal').addEventListener('click', e => { if (e.target.id === 'reqModal') closeRequests(); });
+addEventListener('keydown', e => { if (e.key === 'Escape' && !$('#reqModal').hidden) closeRequests(); });
+$('#reqList').addEventListener('click', async e => {
+  const b = e.target.closest('[data-req]'); if (!b) return;
+  b.closest('.reqact').querySelectorAll('button').forEach(x => { x.disabled = true; });
+  try { await reqApi('POST', { id: b.dataset.req, action: b.dataset.act }); toast(b.dataset.act === 'approve' ? 'Approved. They will be signed in.' : 'Denied.'); }
+  catch (err) { $('#reqErr').textContent = err.message; }
+  reqRefresh();
+});
 // the grey startup skeleton (in index.html) stays until the forecast has loaded or failed, so the what-if view never flashes
 const hideBoot = () => { const b = $('#boot'); if (!b || b.classList.contains('done')) return; b.classList.add('done'); setTimeout(() => b.remove(), 400); };
 (wxLoading ?? Promise.resolve()).catch(() => {}).then(() => setTimeout(hideBoot, 300));

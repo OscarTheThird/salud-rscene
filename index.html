@@ -21,6 +21,7 @@
     <symbol id="i-trend" viewBox="0 0 24 24"><path d="M3 18l6-6 4 4 8-9" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M3 21h18" stroke="currentColor" stroke-width="2"/></symbol>
     <symbol id="i-bell" viewBox="0 0 24 24"><path d="M6 17V11a6 6 0 0 1 12 0v6l2 2H4zM10 21h4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></symbol>
     <symbol id="i-file" viewBox="0 0 24 24"><path d="M6 3h8l4 4v14H6zM9 12h6M9 16h6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></symbol>
+    <symbol id="i-people" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M3 20c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5M16 5.2a3.2 3.2 0 0 1 0 5.6M18 14.8c1.7.7 3 2.4 3 5.2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
     <symbol id="i-gear" viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 17h2M10 17h10M14 4v6M6 14v6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
     <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M16 16l4 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
     <symbol id="i-warn" viewBox="0 0 24 24"><path d="M12 3l10 18H2z" fill="currentColor"/><path d="M12 9v5M12 17v1" stroke="#0a1a2e" stroke-width="2" stroke-linecap="round"/></symbol>
@@ -48,6 +49,7 @@
       <a data-nav="water" tabindex="0" role="button" title="Water Availability" aria-label="Water Availability"><svg><use href="#i-drop"/></svg><span class="nl">Water Availability</span></a>
       <a data-nav="reports" tabindex="0" role="button" title="Reports" aria-label="Reports"><svg><use href="#i-file"/></svg><span class="nl">Reports</span></a>
       <a data-nav="settings" tabindex="0" role="button" title="Settings" aria-label="Settings"><svg><use href="#i-gear"/></svg><span class="nl">Settings</span></a>
+      <a data-nav="requests" id="navReq" tabindex="0" role="button" title="Admin: who asked for access, and approve or deny" aria-label="Access requests (admin)" hidden><svg><use href="#i-people"/></svg><span class="nl">Access requests</span><b class="reqbadge" id="reqBadge" hidden></b></a>
     </nav>
     <div class="sb-speed" id="sbSpeed" title="Simulation speed (hover the sidebar to change)" aria-label="Simulation speed">1×</div>
     <div class="simbox">
@@ -224,6 +226,14 @@
   <small>Speed</small><button type="button" data-mx="1" class="active">1×</button><button type="button" data-mx="6">6×</button><button type="button" data-mx="24">24×</button>
   <button type="button" class="mmenu" aria-label="Open menu" aria-controls="sidebar" aria-expanded="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><span>Menu</span></button>
 </nav>
+<div class="reqmodal" id="reqModal" hidden>
+  <div class="reqcard" role="dialog" aria-modal="true" aria-labelledby="reqTitle">
+    <div class="reqhead"><h2 id="reqTitle">Access requests</h2><button type="button" class="reqx" id="reqClose" aria-label="Close">×</button></div>
+    <p class="reqsub">People who asked to view SALUD. Nobody gets in until you approve, and they must also confirm their email.</p>
+    <div class="reqlist" id="reqList"><p class="reqempty">Loading…</p></div>
+    <p class="reqerr" id="reqErr" role="alert"></p>
+  </div>
+</div>
 <div id="toast"></div>
 <script type="module" src="js/app.js"></script>
 </body>

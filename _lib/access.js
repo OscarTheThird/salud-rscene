@@ -2,6 +2,8 @@
 //   visitor asks (name + email) -> confirms the email from a link -> waits -> the admin approves from an email
 //   -> the waiting page signs the visitor in for ACCESS_MIN minutes (single use).
 import { hmacHex, esc } from './util.js';
+import { rest } from './db.js';
+import { mailer } from './mail.js';
 
 export const ACCESS_MIN = 30, GUEST_TTL_S = ACCESS_MIN * 60;     // how long an approved visitor stays signed in
 export const REQUEST_TTL_H = 24;                                 // a request must be confirmed and decided within a day
@@ -34,19 +36,19 @@ export function verifyEmail({ name, url }) {
   };
 }
 
-export function adminEmail({ name, email, org, country, createdAt, approveUrl, denyUrl }) {
+export function adminEmail({ name, email, org, country, createdAt, approveUrl, denyUrl, confirmed }) {
   const when = new Date(createdAt).toUTCString();
   return {
     subject: `SALUD access request: ${name} <${email}>`,
-    text: `Access request (email confirmed)\n\nName: ${name}\nEmail: ${email}\nOrganization: ${org || '-'}\nCountry (from IP): ${country || '-'}\nRequested: ${when}\n\nApprove: ${approveUrl}\nDeny: ${denyUrl}\n\nThe links work for 24 hours.`,
-    html: wrap(`<p style="font-size:17px;font-weight:700;margin:0 0 10px">Access request <span style="color:#1c8a4f">(email confirmed)</span></p>
+    text: `${confirmed ? 'Access request (email confirmed)' : 'New access request (email not confirmed yet)'}\n\nName: ${name}\nEmail: ${email}\nOrganization: ${org || '-'}\nCountry (from IP): ${country || '-'}\nRequested: ${when}\n\n${confirmed ? '' : 'Even if you approve now, they can only sign in after they confirm their email.\n\n'}Approve: ${approveUrl}\nDeny: ${denyUrl}\n\nThe links work for 24 hours.`,
+    html: wrap(`<p style="font-size:17px;font-weight:700;margin:0 0 10px">${confirmed ? 'Access request <span style="color:#1c8a4f">(email confirmed)</span>' : 'New access request <span style="color:#b8860b">(email not confirmed yet)</span>'}</p>
       <table style="border-collapse:collapse;margin:0 0 16px"><tr><td style="padding:3px 14px 3px 0;color:#5b6b7c">Name</td><td><b>${esc(name)}</b></td></tr>
       <tr><td style="padding:3px 14px 3px 0;color:#5b6b7c">Email</td><td><b>${esc(email)}</b></td></tr>
       <tr><td style="padding:3px 14px 3px 0;color:#5b6b7c">Organization</td><td>${esc(org || '-')}</td></tr>
       <tr><td style="padding:3px 14px 3px 0;color:#5b6b7c">Country (from IP)</td><td>${esc(country || '-')}</td></tr>
       <tr><td style="padding:3px 14px 3px 0;color:#5b6b7c">Requested</td><td>${esc(when)}</td></tr></table>
       <p>${btn(approveUrl, 'Approve', '#1c8a4f')}${btn(denyUrl, 'Deny', '#b3382c')}</p>
-      <p style="color:#5b6b7c;font-size:13px">Each button opens a confirmation page first. The links work for 24 hours.</p>`),
+      <p style="color:#5b6b7c;font-size:13px">${confirmed ? '' : 'Even if you approve now, they can only sign in after they confirm their email. '}Each button opens a confirmation page first. The links work for 24 hours.</p>`),
   };
 }
 
@@ -56,6 +58,21 @@ export function approvedEmail({ name, url }) {
     text: `Hi ${name},\n\nYour request was approved. Open the preview here:\n${url}`,
     html: wrap(`<p>Hi ${esc(name)},</p><p>Your request was approved.</p><p>${btn(url, 'Open SALUD', '#1b7f9e')}</p>`),
   };
+}
+
+// The admin's decision, used by the email links (api/decide.js) and the in-app list (api/requests.js).
+// A request under a day old can be decided once, before or after its email is confirmed; the visitor still has to open their emailed link to get in.
+// Returns the updated row, or null if nothing changed. An approval also emails the visitor a link.
+export async function applyDecision(id, action, { secret, origin, now = Date.now() }) {
+  const since = encodeURIComponent(new Date(now - REQUEST_TTL_H * 3600000).toISOString());
+  const t = await rest(`access_requests?id=eq.${id}&status=in.(pending_email,awaiting)&created_at=gt.${since}`,
+    { method: 'PATCH', prefer: 'return=representation', body: { status: action === 'approve' ? 'approved' : 'denied', decided_at: new Date(now).toISOString() } });
+  const row = t.ok ? (await t.json())[0] : null;
+  if (!row) return null;
+  if (action === 'approve') {
+    try { await mailer.send({ to: row.email, ...approvedEmail({ name: row.name, url: await requestLink(origin, id, secret) }) }); } catch { /* the waiting page still signs them in */ }
+  }
+  return row;
 }
 
 // a small standalone page for the admin's confirm / result screens

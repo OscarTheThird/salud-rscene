@@ -69,6 +69,30 @@ kbd{font:10px inherit;border:1px solid var(--line);border-radius:4px;padding:2px
 .sres div:hover,.sres div.on{background:#12385f}
 .bell{position:relative;background:none;border:0;cursor:pointer;color:#cfe0f3}
 .bell i{position:absolute;top:-2px;right:-1px;width:8px;height:8px;background:var(--red);border-radius:50%}
+/* admin: access requests */
+.reqbadge{margin-left:auto;min-width:20px;padding:1px 6px;border-radius:10px;background:#e0a526;color:#201500;font-size:11.5px;font-weight:800;text-align:center}
+html.sbhover:not(.mobile) .sidebar:not(.sb-x) .reqbadge{position:absolute;margin:0;transform:translate(14px,-12px);min-width:16px;padding:0 4px;font-size:10px}
+#navReq{position:relative}
+.reqmodal{position:fixed;inset:0;z-index:300;background:#020a14cc;display:grid;place-items:center;padding:16px}
+.reqmodal[hidden]{display:none}
+.reqcard{width:min(620px,100%);max-height:calc(100vh - 32px);display:flex;flex-direction:column;background:linear-gradient(180deg,#0b1d35,#08172a);border:1px solid var(--line);border-radius:14px;padding:18px 20px;box-shadow:0 24px 70px #000c}
+.reqhead{display:flex;align-items:center;justify-content:space-between}.reqhead h2{margin:0;font-size:17px}
+.reqx{background:none;border:0;color:var(--mut);font-size:24px;line-height:1;cursor:pointer;padding:2px 8px;border-radius:6px}.reqx:hover,.reqx:focus-visible{color:#fff;background:#12304f;outline:0}
+.reqsub{margin:6px 0 12px;color:var(--mut);font-size:12.5px;line-height:1.45}
+.reqlist{display:grid;gap:8px;overflow:auto;min-height:60px}
+.reqempty{margin:14px 0;text-align:center;color:var(--mut)}
+.reqitem{display:grid;grid-template-columns:1fr auto;gap:4px 12px;align-items:center;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:#0a1b31}
+.reqitem.wait{border-color:#7a5a1a;background:#241d0c}
+.reqitem b{font-size:14px;color:#eaf3fc}.reqitem small{display:block;color:var(--mut);font-size:11.5px;word-break:break-word}
+.reqact{display:flex;gap:6px;grid-row:span 2}
+.reqbtn{height:32px;padding:0 14px;border:1px solid var(--line);border-radius:7px;background:#0a1b31;color:#eaf3fc;font:inherit;font-size:12.5px;font-weight:700;cursor:pointer}
+.reqbtn:hover:not(:disabled){background:#12304f}.reqbtn:focus-visible{outline:2px solid #2ee6d6;outline-offset:2px}.reqbtn:disabled{opacity:.5;cursor:default}
+.reqbtn.ok{background:#1c8a4f;border-color:#2aa86a;color:#fff}.reqbtn.ok:hover:not(:disabled){background:#23a05f}
+.reqbtn.no{color:#ffb3b8;border-color:#5a2a35}.reqbtn.no:hover:not(:disabled){background:#3a1a22}
+.reqchip{justify-self:end;font-size:11px;font-weight:700;padding:2px 9px;border-radius:6px;border:1px solid;white-space:nowrap}
+.reqchip.c-wait{color:#ffd98a;border-color:#7a5a1a}.reqchip.c-mail{color:var(--mut);border-color:var(--line)}.reqchip.c-ok{color:#9ff5c0;border-color:#1c6a45;background:#145a38}.reqchip.c-no{color:#ffb3b8;border-color:#5a2a35}.reqchip.c-used{color:#9fd3ff;border-color:#2a5a8a;background:#0c2038}
+.reqerr{min-height:18px;margin:8px 0 0;color:#ff8f9a;font-size:12px}
+html.mobile .reqmodal{display:none}
 .signout{margin-left:-6px;padding:5px 10px;border:1px solid var(--line);border-radius:7px;background:#0a1b31;color:var(--mut);font-size:11.5px;font-weight:600;text-decoration:none;white-space:nowrap}
 .signout:hover,.signout:focus-visible{color:#fff;background:#12304f;outline:0}
 .user{display:flex;align-items:center;gap:10px}.user b{display:block}.av{width:38px;height:38px;border-radius:50%;background:radial-gradient(circle at 30% 30%,#4aa8ff,#1c4f96);display:grid;place-items:center;font-weight:600;border:2px solid #2d6fc4}

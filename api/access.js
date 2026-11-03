@@ -43,7 +43,20 @@ async function startRequest(request, body, secret, now) {
     await rest(`access_requests?id=eq.${row.id}`, { method: 'DELETE' });
     return json({ error: 'We could not send an email to that address. Check it and try again.' }, 502);
   }
+  await notifyAdmin(request, row, secret, Date.now(), false);       // best effort: the visitor's request stands even if this email fails
   return json({ ok: true });
+}
+
+// the admin's "access request" email, with Approve / Deny; false if there is no approver address or the send failed
+async function notifyAdmin(request, row, secret, now, confirmed) {
+  const to = emails(process.env.APPROVER_EMAIL)[0] || emails(process.env.ADMIN_EMAILS)[0];
+  if (!to) return false;
+  const origin = new URL(request.url).origin;
+  try {
+    await mailer.send({ to, ...adminEmail({ name: row.name, email: row.email, org: row.org, country: row.country, createdAt: row.created_at, confirmed,
+      approveUrl: await decideLink(origin, row.id, 'approve', secret, now), denyUrl: await decideLink(origin, row.id, 'deny', secret, now) }) });
+    return true;
+  } catch { return false; }
 }
 
 async function poll(request, body, secret, now) {
@@ -62,13 +75,7 @@ async function poll(request, body, secret, now) {
     if (row.status === 'pending_email') {                                         // first visit to the link: the email is confirmed
       const t = await rest(`access_requests?id=eq.${id}&status=eq.pending_email`, { method: 'PATCH', prefer: 'return=representation', body: { status: 'awaiting', verified_at: iso } });
       if (t.ok && (await t.json()).length) {                                      // only the request that made the change tells the admin
-        const origin = new URL(request.url).origin;
-        const to = emails(process.env.APPROVER_EMAIL)[0] || emails(process.env.ADMIN_EMAILS)[0];
-        try {
-          if (!to) throw new Error('no approver');
-          await mailer.send({ to, ...adminEmail({ name: row.name, email: row.email, org: row.org, country: row.country, createdAt: row.created_at,
-            approveUrl: await decideLink(origin, id, 'approve', secret, now), denyUrl: await decideLink(origin, id, 'deny', secret, now) }) });
-        } catch {
+        if (!(await notifyAdmin(request, row, secret, now, true))) {
           await rest(`access_requests?id=eq.${id}&status=eq.awaiting`, { method: 'PATCH', body: { status: 'pending_email', verified_at: null } });   // try again on the next poll
           return json({ error: 'Could not reach the approver. Trying again.' }, 502);
         }
@@ -80,7 +87,7 @@ async function poll(request, body, secret, now) {
   if (row.status === 'approved') {
     if (now - Date.parse(row.decided_at) > CLAIM_H * 3600000) return json({ state: 'expired' });
     // one atomic step, so a link can be used by one browser only
-    const c = await rest(`access_requests?id=eq.${id}&status=eq.approved`, { method: 'PATCH', prefer: 'return=representation', body: { status: 'claimed', claimed_at: iso } });
+    const c = await rest(`access_requests?id=eq.${id}&status=eq.approved`, { method: 'PATCH', prefer: 'return=representation', body: { status: 'claimed', claimed_at: iso, verified_at: row.verified_at ?? iso } });
     if (!(c.ok && (await c.json()).length)) return json({ state: 'expired' });
     const exp = Math.floor(now / 1000) + GUEST_TTL_S;
     const cookie = cookieHeader(await sign({ e: `guest:${row.email}`, r: 'guest', exp }, secret), GUEST_TTL_S);
